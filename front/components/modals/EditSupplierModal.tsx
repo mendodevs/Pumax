@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Modal, ScrollView, Alert, Acti
 import { X } from 'lucide-react-native';
 import { Supplier, UpdateSupplierRequest } from '../../types/suppliers.types';
 import { updateSupplier } from '../../services/suppliers.service';
+import { useI18n } from '../../i18n';
 
 interface EditSupplierModalProps {
   visible: boolean;
@@ -12,6 +13,7 @@ interface EditSupplierModalProps {
 }
 
 export default function EditSupplierModal({ visible, supplier, onClose, onSuccess }: EditSupplierModalProps) {
+  const { t } = useI18n();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<UpdateSupplierRequest>({ nombre: '' });
 
@@ -30,18 +32,18 @@ export default function EditSupplierModal({ visible, supplier, onClose, onSucces
 
   const handleSave = async () => {
     if (!supplier || !formData.nombre?.trim()) {
-      Alert.alert('Error', 'El nombre es obligatorio');
+      Alert.alert(t('forms.alert.error'), t('forms.edit.errName'));
       return;
     }
 
     setLoading(true);
     try {
       await updateSupplier(supplier.id, formData);
-      Alert.alert('Éxito', 'Proveedor actualizado correctamente');
+      Alert.alert(t('forms.alert.success'), t('forms.editSupplier.success'));
       onSuccess();
       onClose();
     } catch (error) {
-      Alert.alert('Error', 'No se pudo actualizar el proveedor');
+      Alert.alert(t('forms.alert.error'), t('forms.editSupplier.failure'));
     } finally {
       setLoading(false);
     }
@@ -52,32 +54,32 @@ export default function EditSupplierModal({ visible, supplier, onClose, onSucces
       <View className="flex-1 bg-black/50 justify-center items-center">
         <View className="bg-slate-900 rounded-lg w-11/12 max-h-5/6 p-6">
           <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-white text-xl font-bold">Editar Proveedor</Text>
+            <Text className="text-ink text-xl font-bold">{t('forms.editSupplier.title')}</Text>
             <TouchableOpacity onPress={onClose} disabled={loading}>
               <X color="#FFF" size={24} />
             </TouchableOpacity>
           </View>
 
           <ScrollView>
-            <Text className="text-slate-300 mb-1">Nombre *</Text>
-            <TextInput value={formData.nombre} onChangeText={(t) => setFormData({ ...formData, nombre: t })} className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-white bg-slate-800" editable={!loading} />
+            <Text className="text-slate-300 mb-1">{t('forms.edit.nameReq')}</Text>
+            <TextInput value={formData.nombre} onChangeText={(v) => setFormData({ ...formData, nombre: v })} className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-ink bg-slate-800" editable={!loading} />
 
-            <Text className="text-slate-300 mb-1">CUIT</Text>
-            <TextInput value={formData.cuit} onChangeText={(t) => setFormData({ ...formData, cuit: t })} className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-white bg-slate-800" editable={!loading} />
+            <Text className="text-slate-300 mb-1">{t('forms.field.cuit')}</Text>
+            <TextInput value={formData.cuit} onChangeText={(v) => setFormData({ ...formData, cuit: v })} className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-ink bg-slate-800" editable={!loading} />
 
-            <Text className="text-slate-300 mb-1">Teléfono</Text>
-            <TextInput value={formData.telefono} onChangeText={(t) => setFormData({ ...formData, telefono: t })} className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-white bg-slate-800" editable={!loading} />
+            <Text className="text-slate-300 mb-1">{t('forms.field.phone')}</Text>
+            <TextInput value={formData.telefono} onChangeText={(v) => setFormData({ ...formData, telefono: v })} className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-ink bg-slate-800" editable={!loading} />
 
-            <Text className="text-slate-300 mb-1">Email</Text>
-            <TextInput value={formData.email} onChangeText={(t) => setFormData({ ...formData, email: t })} className="border border-gray-600 rounded-lg px-3 py-2 mb-4 text-white bg-slate-800" editable={!loading} />
+            <Text className="text-slate-300 mb-1">{t('forms.field.email')}</Text>
+            <TextInput value={formData.email} onChangeText={(v) => setFormData({ ...formData, email: v })} className="border border-gray-600 rounded-lg px-3 py-2 mb-4 text-ink bg-slate-800" editable={!loading} />
           </ScrollView>
 
           <View className="flex-row justify-end mt-4">
             <TouchableOpacity onPress={onClose} className="bg-gray-600 px-4 py-2 rounded-lg mr-2" disabled={loading}>
-              <Text className="text-white">Cancelar</Text>
+              <Text className="text-ink">{t('common.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleSave} className="bg-brand-500 px-4 py-2 rounded-lg" disabled={loading}>
-              {loading ? <ActivityIndicator color="white" /> : <Text className="text-white">Guardar</Text>}
+              {loading ? <ActivityIndicator color="white" /> : <Text className="text-white">{t('common.save')}</Text>}
             </TouchableOpacity>
           </View>
         </View>

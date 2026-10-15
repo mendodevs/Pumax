@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { AlertTriangle, Check, X, type LucideIcon } from "lucide-react-native";
 import { colors } from "../constants/theme";
+import { useI18n } from "../i18n";
 
 type Props = {
   visible: boolean;
@@ -33,13 +34,14 @@ export default function FormModal({
   title,
   subtitle,
   icon: Icon,
-  submitText = "Guardar",
+  submitText,
   submitting = false,
   error,
   onClose,
   onSubmit,
   children,
 }: Props) {
+  const { t } = useI18n();
   const { height } = useWindowDimensions();
 
   return (
@@ -60,7 +62,7 @@ export default function FormModal({
               <Icon color={colors.wineLight} size={22} />
             </View>
             <View className="flex-1">
-              <Text className="text-white text-lg font-bold">{title}</Text>
+              <Text className="text-ink text-lg font-bold">{title}</Text>
               {subtitle ? <Text className="text-slate-400 text-sm">{subtitle}</Text> : null}
             </View>
             <TouchableOpacity
@@ -81,7 +83,7 @@ export default function FormModal({
             {error ? (
               <View className="flex-row items-start bg-red-500/20 border border-red-500 rounded-xl px-3 py-3 mb-4">
                 <AlertTriangle color={colors.danger} size={18} />
-                <Text className="text-white ml-2 flex-1">{error}</Text>
+                <Text className="text-ink ml-2 flex-1">{error}</Text>
               </View>
             ) : null}
             {children}
@@ -94,7 +96,7 @@ export default function FormModal({
               disabled={submitting}
               className="px-5 py-3 rounded-xl bg-slate-700 mr-3"
             >
-              <Text className="text-white font-semibold">Cancelar</Text>
+              <Text className="text-ink font-semibold">{t("common.cancel")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={onSubmit}
@@ -108,7 +110,7 @@ export default function FormModal({
               ) : (
                 <>
                   <Check color="#fff" size={18} />
-                  <Text className="text-white font-bold ml-2">{submitText}</Text>
+                  <Text className="text-white font-bold ml-2">{submitText ?? t("common.save")}</Text>
                 </>
               )}
             </TouchableOpacity>

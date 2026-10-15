@@ -13,6 +13,8 @@ import { X } from 'lucide-react-native';
 import { Product, UpdateProductRequest } from '../../types/products.types';
 import { updateProduct } from '../../services/products.service';
 import { useCategories } from '../../hooks/useCategories';
+import { useI18n } from '../../i18n';
+import { useTheme } from '../../context/SettingsContext';
 
 interface EditProductModalProps {
   visible: boolean;
@@ -27,6 +29,8 @@ export default function EditProductModal({
   onClose,
   onSuccess,
 }: EditProductModalProps) {
+  const { t } = useI18n();
+  const theme = useTheme();
   const { categories } = useCategories();
   const [loading, setLoading] = useState(false);
 
@@ -63,12 +67,12 @@ export default function EditProductModal({
 
     // Validaciones
     if (!formData.codigo?.trim() || !formData.descripcion?.trim()) {
-      Alert.alert('Error', 'Código y descripción son obligatorios');
+      Alert.alert(t('forms.alert.error'), t('forms.editProduct.errRequired'));
       return;
     }
 
     if (formData.precio_venta! <= 0) {
-      Alert.alert('Error', 'El precio de venta debe ser mayor a 0');
+      Alert.alert(t('forms.alert.error'), t('forms.editProduct.errSale'));
       return;
     }
 
@@ -76,11 +80,11 @@ export default function EditProductModal({
 
     try {
       await updateProduct(product.id, formData);
-      Alert.alert('Éxito', 'Producto actualizado correctamente');
+      Alert.alert(t('forms.alert.success'), t('forms.editProduct.success'));
       onSuccess();
       onClose();
     } catch (error) {
-      Alert.alert('Error', 'No se pudo actualizar el producto');
+      Alert.alert(t('forms.alert.error'), t('forms.editProduct.failure'));
     } finally {
       setLoading(false);
     }
@@ -92,7 +96,7 @@ export default function EditProductModal({
         <View className="bg-slate-900 rounded-lg w-11/12 max-h-5/6 p-6">
           {/* Header */}
           <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-white text-xl font-bold">Editar Producto</Text>
+            <Text className="text-ink text-xl font-bold">{t('forms.editProduct.title')}</Text>
             <TouchableOpacity onPress={onClose} disabled={loading}>
               <X color="#FFF" size={24} />
             </TouchableOpacity>
@@ -100,61 +104,61 @@ export default function EditProductModal({
 
           {/* Form */}
           <ScrollView>
-            <Text className="text-slate-300 mb-1">Código *</Text>
+            <Text className="text-slate-300 mb-1">{t('forms.editProduct.code')}</Text>
             <TextInput
               value={formData.codigo}
               onChangeText={(text) => setFormData({ ...formData, codigo: text })}
-              className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-white bg-slate-800"
-              placeholderTextColor="#9CA3AF"
+              className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-ink bg-slate-800"
+              placeholderTextColor={theme.placeholder}
               editable={!loading}
             />
 
-            <Text className="text-slate-300 mb-1">Descripción *</Text>
+            <Text className="text-slate-300 mb-1">{t('forms.editProduct.description')}</Text>
             <TextInput
               value={formData.descripcion}
               onChangeText={(text) => setFormData({ ...formData, descripcion: text })}
-              className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-white bg-slate-800"
-              placeholderTextColor="#9CA3AF"
+              className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-ink bg-slate-800"
+              placeholderTextColor={theme.placeholder}
               editable={!loading}
             />
 
-            <Text className="text-slate-300 mb-1">Precio Base</Text>
+            <Text className="text-slate-300 mb-1">{t('forms.editProduct.basePrice')}</Text>
             <TextInput
               value={formData.precio_base?.toString()}
               onChangeText={(text) => setFormData({ ...formData, precio_base: parseFloat(text) || 0 })}
               keyboardType="numeric"
-              className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-white bg-slate-800"
-              placeholderTextColor="#9CA3AF"
+              className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-ink bg-slate-800"
+              placeholderTextColor={theme.placeholder}
               editable={!loading}
             />
 
-            <Text className="text-slate-300 mb-1">Precio Venta *</Text>
+            <Text className="text-slate-300 mb-1">{t('forms.editProduct.salePrice')}</Text>
             <TextInput
               value={formData.precio_venta?.toString()}
               onChangeText={(text) => setFormData({ ...formData, precio_venta: parseFloat(text) || 0 })}
               keyboardType="numeric"
-              className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-white bg-slate-800"
-              placeholderTextColor="#9CA3AF"
+              className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-ink bg-slate-800"
+              placeholderTextColor={theme.placeholder}
               editable={!loading}
             />
 
-            <Text className="text-slate-300 mb-1">Stock</Text>
+            <Text className="text-slate-300 mb-1">{t('forms.editProduct.stock')}</Text>
             <TextInput
               value={formData.stock?.toString()}
               onChangeText={(text) => setFormData({ ...formData, stock: parseInt(text) || 0 })}
               keyboardType="numeric"
-              className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-white bg-slate-800"
-              placeholderTextColor="#9CA3AF"
+              className="border border-gray-600 rounded-lg px-3 py-2 mb-3 text-ink bg-slate-800"
+              placeholderTextColor={theme.placeholder}
               editable={!loading}
             />
 
-            <Text className="text-slate-300 mb-1">Stock Mínimo</Text>
+            <Text className="text-slate-300 mb-1">{t('forms.editProduct.minStock')}</Text>
             <TextInput
               value={formData.stock_minimo?.toString()}
               onChangeText={(text) => setFormData({ ...formData, stock_minimo: parseInt(text) || 0 })}
               keyboardType="numeric"
-              className="border border-gray-600 rounded-lg px-3 py-2 mb-4 text-white bg-slate-800"
-              placeholderTextColor="#9CA3AF"
+              className="border border-gray-600 rounded-lg px-3 py-2 mb-4 text-ink bg-slate-800"
+              placeholderTextColor={theme.placeholder}
               editable={!loading}
             />
           </ScrollView>
@@ -166,7 +170,7 @@ export default function EditProductModal({
               className="bg-gray-600 px-4 py-2 rounded-lg mr-2"
               disabled={loading}
             >
-              <Text className="text-white">Cancelar</Text>
+              <Text className="text-ink">{t('common.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSave}
@@ -176,7 +180,7 @@ export default function EditProductModal({
               {loading ? (
                 <ActivityIndicator color="white" />
               ) : (
-                <Text className="text-white">Guardar</Text>
+                <Text className="text-white">{t('common.save')}</Text>
               )}
             </TouchableOpacity>
           </View>

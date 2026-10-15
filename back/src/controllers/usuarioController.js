@@ -1,223 +1,363 @@
+const crypto = require('crypto');
+const { Op } = require('sequelize');
+const sequelize = require('../config/database');
 const { Usuario, Empleado, Sesion } = require('../models');
 const bcrypt = require('bcryptjs');
 
-// Obtener todos los usuarios con empleado
+// ============================================
+// ADMINISTRACIÓN DE USUARIOS (solo ADMIN, ver usuarioRoutes)
+// ============================================
+
+const ROLES_VALIDOS = ['ADMIN', 'VENDEDOR', 'DEPOSITO', 'FACTURACION', 'VIAJANTE'];
+const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,50}$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_MIN = 8;
+const EMPLEADO_LISTA = ['id', 'nombre', 'apellido', 'dni', 'cargo', 'telefono', 'email'];
+
+// Sin caracteres que se confunden (0/O, 1/l/I) para que sea fácil de dictar
+const CLAVE_ALFABETO = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+const generarClave = (largo = 10) =>
+  Array.from({ length: largo }, () => CLAVE_ALFABETO[crypto.randomInt(CLAVE_ALFABETO.length)]).join('');
+
+const hoyLocal = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+
+const fail = (res, status, message) => res.status(status).json({ success: false, message });
+
+const incluirEmpleado = [{ model: Empleado, as: 'empleado', attributes: EMPLEADO_LISTA }];
+
+const buscarUsuario = (id) =>
+  Usuario.findByPk(id, { include: incluirEmpleado, attributes: { exclude: ['password_hash'] } });
+
+/** Admins activos, sin contar a `exceptoId` (para no dejar el sistema sin administrador) */
+const otrosAdminsActivos = (exceptoId) =>
+  Usuario.count({ where: { rol: 'ADMIN', activo: true, id: { [Op.ne]: exceptoId } } });
+
+/** Cierra todas las sesiones abiertas de una persona */
+const cerrarSesiones = (usuarioId, transaction) =>
+  Sesion.update({ activo: false }, { where: { usuario_id: usuarioId, activo: true }, transaction });
+
+const normalizarRol = (rol) => {
+  const r = String(rol || '').toUpperCase();
+  return r === 'EMPLEADO' ? 'VENDEDOR' : r;
+};
+
+/**
+ * Valida y limpia los datos de la ficha de empleado.
+ * Devuelve { datos } o { error }. Con `parcial` solo valida lo que viene informado.
+ */
+function validarEmpleado(e = {}, { parcial = false } = {}) {
+  const datos = {};
+  const texto = (v, max) => String(v).trim().slice(0, max);
+
+  for (const [campo, etiqueta] of [['nombre', 'El nombre'], ['apellido', 'El apellido']]) {
+    if (e[campo] !== undefined) {
+      if (!String(e[campo]).trim()) return { error: `${etiqueta} no puede quedar vacío` };
+      datos[campo] = texto(e[campo], 100);
+    } else if (!parcial) {
+      return { error: `${etiqueta} es requerido` };
+    }
+  }
+
+  if (e.dni !== undefined) {
+    const dni = String(e.dni).replace(/[.\s-]/g, '');
+    if (!/^\d{6,12}$/.test(dni)) return { error: 'El DNI debe tener entre 6 y 12 números' };
+    datos.dni = dni;
+  } else if (!parcial) {
+    return { error: 'El DNI es requerido' };
+  }
+
+  if (e.email !== undefined) {
+    const v = String(e.email).trim();
+    if (v && !EMAIL_REGEX.test(v)) return { error: 'El email no es válido' };
+    datos.email = v ? v.slice(0, 100) : null;
+  }
+  if (e.telefono !== undefined) datos.telefono = String(e.telefono).trim().slice(0, 20) || null;
+  if (e.cargo !== undefined) datos.cargo = String(e.cargo).trim().slice(0, 100) || null;
+
+  return { datos };
+}
+
+// Listado completo (activos e inactivos: el front filtra y permite reactivar)
 exports.getAll = async (req, res) => {
   try {
     const usuarios = await Usuario.findAll({
-      where: { activo: true },
-      include: [{
-        model: Empleado,
-        as: 'empleado',
-        attributes: ['id', 'nombre', 'apellido', 'dni', 'cargo']
-      }],
-      attributes: { exclude: ['password_hash'] } // No mostrar password
+      include: incluirEmpleado,
+      attributes: { exclude: ['password_hash'] },
+      order: [['activo', 'DESC'], ['username', 'ASC']]
     });
-    res.json({
-      success: true,
-      data: usuarios
-    });
+    res.json({ success: true, data: usuarios });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error obteniendo usuarios',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error obteniendo usuarios', error: error.message });
   }
 };
 
 // Obtener usuario por ID
 exports.getById = async (req, res) => {
   try {
-    const { id } = req.params;
-    const usuario = await Usuario.findByPk(id, {
-      include: [{
-        model: Empleado,
-        as: 'empleado'
-      }],
+    const usuario = await Usuario.findByPk(req.params.id, {
+      include: [{ model: Empleado, as: 'empleado' }],
       attributes: { exclude: ['password_hash'] }
     });
-    
-    if (!usuario) {
-      return res.status(404).json({
-        success: false,
-        message: 'Usuario no encontrado'
-      });
-    }
-    
-    res.json({
-      success: true,
-      data: usuario
-    });
+    if (!usuario) return fail(res, 404, 'Usuario no encontrado');
+    res.json({ success: true, data: usuario });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error obteniendo usuario',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error obteniendo usuario', error: error.message });
   }
 };
 
-// Crear usuario
+/**
+ * Crear usuario.
+ * Body: { username, rol, password?, empleado: { nombre, apellido, dni, cargo?, email?, telefono? } }
+ *   - También acepta `empleado_id` para vincular una ficha que ya existe.
+ *   - Sin `password` se genera una clave temporal y se devuelve UNA sola vez en `password_temporal`.
+ */
 exports.create = async (req, res) => {
+  const t = await sequelize.transaction();
   try {
-    const { username, password, password_hash, rol, empleado_id, activo } = req.body;
+    const { username, password, password_hash, rol, empleado_id, empleado } = req.body;
 
-    if (!username) {
-      return res.status(400).json({
-        success: false,
-        message: 'El nombre de usuario es requerido'
-      });
+    const user = String(username || '').trim();
+    if (!USERNAME_REGEX.test(user)) {
+      await t.rollback();
+      return fail(res, 400, 'El usuario debe tener entre 3 y 50 caracteres: letras, números, punto, guion o guion bajo');
     }
 
-    const rawPassword = password || password_hash;
-    if (!rawPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'La contraseña es requerida'
-      });
-    }
-
-    // Hashear password con bcrypt
-    const hashedPassword = await bcrypt.hash(rawPassword, 10);
-
-    // Mapear rol si viene del frontend (ej: 'EMPLEADO' -> 'VENDEDOR')
-    const ROLES_VALIDOS = ['ADMIN', 'VENDEDOR', 'DEPOSITO', 'FACTURACION', 'VIAJANTE'];
-    let rolNormalizado = (rol || 'VENDEDOR').toUpperCase();
-    if (rolNormalizado === 'EMPLEADO') {
-      rolNormalizado = 'VENDEDOR';
-    }
+    const rolNormalizado = normalizarRol(rol || 'VENDEDOR');
     if (!ROLES_VALIDOS.includes(rolNormalizado)) {
-      rolNormalizado = 'VENDEDOR';
+      await t.rollback();
+      return fail(res, 400, 'El rol no es válido');
     }
 
-    const usuario = await Usuario.create({
-      username: username.trim(),
-      password_hash: hashedPassword,
-      rol: rolNormalizado,
-      empleado_id: empleado_id || null,
-      activo: activo !== undefined ? activo : true
-    });
-    
-    // No devolver el password en la respuesta
-    const usuarioSinPassword = usuario.toJSON();
-    delete usuarioSinPassword.password_hash;
-    
+    let clave = password || password_hash;
+    let generada = false;
+    if (clave === undefined || clave === null || clave === '') {
+      clave = generarClave();
+      generada = true;
+    } else if (String(clave).length < PASSWORD_MIN) {
+      await t.rollback();
+      return fail(res, 400, `La contraseña debe tener al menos ${PASSWORD_MIN} caracteres`);
+    }
+
+    if (await Usuario.findOne({ where: { username: user }, transaction: t })) {
+      await t.rollback();
+      return fail(res, 400, 'Ese nombre de usuario ya está en uso');
+    }
+
+    // Ficha de empleado: una existente o una nueva
+    let empleadoVinculado = null;
+    if (empleado_id) {
+      empleadoVinculado = await Empleado.findByPk(empleado_id, { transaction: t });
+      if (!empleadoVinculado) {
+        await t.rollback();
+        return fail(res, 400, 'El empleado indicado no existe');
+      }
+      if (await Usuario.findOne({ where: { empleado_id }, transaction: t })) {
+        await t.rollback();
+        return fail(res, 400, 'Ese empleado ya tiene un usuario');
+      }
+    } else if (empleado) {
+      const { datos, error } = validarEmpleado(empleado);
+      if (error) {
+        await t.rollback();
+        return fail(res, 400, error);
+      }
+      if (await Empleado.findOne({ where: { dni: datos.dni }, transaction: t })) {
+        await t.rollback();
+        return fail(res, 400, 'Ya existe un empleado con ese DNI');
+      }
+      empleadoVinculado = await Empleado.create(
+        { ...datos, fecha_ingreso: hoyLocal(), activo: true },
+        { transaction: t }
+      );
+    }
+
+    const creado = await Usuario.create(
+      {
+        username: user,
+        password_hash: await bcrypt.hash(String(clave), 10),
+        rol: rolNormalizado,
+        empleado_id: empleadoVinculado ? empleadoVinculado.id : null,
+        activo: true
+      },
+      { transaction: t }
+    );
+
+    await t.commit();
+
     res.status(201).json({
       success: true,
       message: 'Usuario creado exitosamente',
-      data: usuarioSinPassword
+      data: await buscarUsuario(creado.id),
+      ...(generada ? { password_temporal: clave } : {})
     });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Error creando usuario',
-      error: error.message
-    });
+    if (!t.finished) await t.rollback();
+    res.status(400).json({ success: false, message: 'Error creando usuario', error: error.message });
   }
 };
 
-// Actualizar usuario
+/**
+ * Actualizar usuario. Solo cambia lo permitido (nunca la clave ni el usuario):
+ *   { rol?, activo?, empleado?: { nombre, apellido, dni, cargo, email, telefono } }
+ * Si el usuario no tiene ficha y se envían nombre, apellido y DNI, se crea y se vincula.
+ */
 exports.update = async (req, res) => {
+  const t = await sequelize.transaction();
   try {
-    const { id } = req.params;
-    const usuarioExistente = await Usuario.findByPk(id);
-
-    if (!usuarioExistente) {
-      return res.status(404).json({
-        success: false,
-        message: 'Usuario no encontrado'
-      });
+    const id = Number(req.params.id);
+    const usuario = await Usuario.findByPk(id, { transaction: t });
+    if (!usuario) {
+      await t.rollback();
+      return fail(res, 404, 'Usuario no encontrado');
     }
 
-    const updateData = { ...req.body };
+    const esMismo = id === Number(req.user.id);
+    const cambios = {};
 
-    // Si viene password, hashearlo
-    if (updateData.password) {
-      updateData.password_hash = await bcrypt.hash(updateData.password, 10);
-      delete updateData.password;
+    if (req.body.rol !== undefined) {
+      const rol = normalizarRol(req.body.rol);
+      if (!ROLES_VALIDOS.includes(rol)) {
+        await t.rollback();
+        return fail(res, 400, 'El rol no es válido');
+      }
+      cambios.rol = rol;
     }
+    if (req.body.activo !== undefined) cambios.activo = Boolean(req.body.activo);
 
-    // Normalizar rol si viene especificado
-    if (updateData.rol) {
-      const ROLES_VALIDOS = ['ADMIN', 'VENDEDOR', 'DEPOSITO', 'FACTURACION', 'VIAJANTE'];
-      let rolNormalizado = updateData.rol.toUpperCase();
-      if (rolNormalizado === 'EMPLEADO') rolNormalizado = 'VENDEDOR';
-      if (ROLES_VALIDOS.includes(rolNormalizado)) {
-        updateData.rol = rolNormalizado;
-      } else {
-        delete updateData.rol;
+    const cambiaRol = cambios.rol !== undefined && cambios.rol !== usuario.rol;
+    const desactiva = cambios.activo === false && usuario.activo;
+
+    if (esMismo && (cambiaRol || desactiva)) {
+      await t.rollback();
+      return fail(res, 400, 'No podés cambiar tu propio rol ni desactivar tu propia cuenta');
+    }
+    if (usuario.rol === 'ADMIN' && usuario.activo && (cambiaRol || desactiva)) {
+      if ((await otrosAdminsActivos(id)) === 0) {
+        await t.rollback();
+        return fail(res, 400, 'Tiene que quedar al menos un administrador activo');
       }
     }
 
-    // Si se enviaron datos de empleado (nombre, apellido, email) y el usuario tiene empleado asociado
-    if (usuarioExistente.empleado_id && (updateData.nombre || updateData.apellido || updateData.email)) {
-      const empleadoUpdate = {};
-      if (updateData.nombre) empleadoUpdate.nombre = updateData.nombre;
-      if (updateData.apellido) empleadoUpdate.apellido = updateData.apellido;
-      if (updateData.email) empleadoUpdate.email = updateData.email;
+    // Ficha de empleado (campos planos como respaldo del formato anterior)
+    const { nombre, apellido, email } = req.body;
+    const datosEmpleado = { ...(nombre !== undefined && { nombre }), ...(apellido !== undefined && { apellido }), ...(email !== undefined && { email }), ...(req.body.empleado || {}) };
 
-      await Empleado.update(empleadoUpdate, {
-        where: { id: usuarioExistente.empleado_id }
-      });
+    if (Object.keys(datosEmpleado).length > 0) {
+      if (usuario.empleado_id) {
+        const { datos, error } = validarEmpleado(datosEmpleado, { parcial: true });
+        if (error) {
+          await t.rollback();
+          return fail(res, 400, error);
+        }
+        if (datos.dni) {
+          const repetido = await Empleado.findOne({
+            where: { dni: datos.dni, id: { [Op.ne]: usuario.empleado_id } },
+            transaction: t
+          });
+          if (repetido) {
+            await t.rollback();
+            return fail(res, 400, 'Ya existe un empleado con ese DNI');
+          }
+        }
+        if (Object.keys(datos).length > 0) {
+          await Empleado.update(datos, { where: { id: usuario.empleado_id }, transaction: t });
+        }
+      } else if (datosEmpleado.nombre || datosEmpleado.apellido || datosEmpleado.dni) {
+        // Completar la ficha: pide los tres datos obligatorios
+        const { datos, error } = validarEmpleado(datosEmpleado);
+        if (error) {
+          await t.rollback();
+          return fail(res, 400, error);
+        }
+        if (await Empleado.findOne({ where: { dni: datos.dni }, transaction: t })) {
+          await t.rollback();
+          return fail(res, 400, 'Ya existe un empleado con ese DNI');
+        }
+        const ficha = await Empleado.create(
+          { ...datos, fecha_ingreso: hoyLocal(), activo: true },
+          { transaction: t }
+        );
+        cambios.empleado_id = ficha.id;
+      }
     }
 
-    // Limpiar campos que no pertenecen a la tabla usuarios
-    delete updateData.nombre;
-    delete updateData.apellido;
-    delete updateData.email;
+    if (Object.keys(cambios).length > 0) await usuario.update(cambios, { transaction: t });
+    if (desactiva) await cerrarSesiones(id, t);
 
-    await usuarioExistente.update(updateData);
-
-    const usuario = await Usuario.findByPk(id, {
-      include: [{
-        model: Empleado,
-        as: 'empleado',
-        attributes: ['id', 'nombre', 'apellido', 'dni', 'cargo']
-      }],
-      attributes: { exclude: ['password_hash'] }
-    });
-    
-    res.json({
-      success: true,
-      message: 'Usuario actualizado',
-      data: usuario
-    });
+    await t.commit();
+    res.json({ success: true, message: 'Usuario actualizado', data: await buscarUsuario(id) });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Error actualizando usuario',
-      error: error.message
-    });
+    if (!t.finished) await t.rollback();
+    res.status(400).json({ success: false, message: 'Error actualizando usuario', error: error.message });
   }
 };
 
-// Eliminar usuario (soft delete)
+// Desactivar usuario (no se borra: conserva el historial y se puede reactivar)
 exports.delete = async (req, res) => {
+  const t = await sequelize.transaction();
   try {
-    const { id } = req.params;
-    const [updated] = await Usuario.update(
-      { activo: false },
-      { where: { id } }
-    );
-
-    if (!updated) {
-      return res.status(404).json({
-        success: false,
-        message: 'Usuario no encontrado'
-      });
+    const id = Number(req.params.id);
+    const usuario = await Usuario.findByPk(id, { transaction: t });
+    if (!usuario) {
+      await t.rollback();
+      return fail(res, 404, 'Usuario no encontrado');
     }
+    if (id === Number(req.user.id)) {
+      await t.rollback();
+      return fail(res, 400, 'No podés desactivar tu propia cuenta');
+    }
+    if (usuario.rol === 'ADMIN' && usuario.activo && (await otrosAdminsActivos(id)) === 0) {
+      await t.rollback();
+      return fail(res, 400, 'Tiene que quedar al menos un administrador activo');
+    }
+
+    await usuario.update({ activo: false }, { transaction: t });
+    await cerrarSesiones(id, t);
+    await t.commit();
+    res.json({ success: true, message: 'Usuario desactivado' });
+  } catch (error) {
+    if (!t.finished) await t.rollback();
+    res.status(500).json({ success: false, message: 'Error desactivando usuario', error: error.message });
+  }
+};
+
+/**
+ * Reiniciar la contraseña de otra persona.
+ * Body: { password_nueva? } — sin clave se genera una temporal y se devuelve una sola vez.
+ * Cierra sus sesiones abiertas. La propia clave se cambia desde Mi cuenta (exige la actual).
+ */
+exports.resetPassword = async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (id === Number(req.user.id)) {
+      return fail(res, 400, 'Tu propia contraseña se cambia desde Mi cuenta');
+    }
+    const usuario = await Usuario.findByPk(id);
+    if (!usuario) return fail(res, 404, 'Usuario no encontrado');
+
+    let clave = req.body.password_nueva;
+    let generada = false;
+    if (clave === undefined || clave === null || clave === '') {
+      clave = generarClave();
+      generada = true;
+    } else if (String(clave).length < PASSWORD_MIN) {
+      return fail(res, 400, `La contraseña debe tener al menos ${PASSWORD_MIN} caracteres`);
+    }
+
+    await usuario.update({ password_hash: await bcrypt.hash(String(clave), 10) });
+    await cerrarSesiones(id);
 
     res.json({
       success: true,
-      message: 'Usuario desactivado'
+      message: 'Contraseña reiniciada',
+      ...(generada ? { password_temporal: clave } : {})
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error eliminando usuario',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error reiniciando la contraseña', error: error.message });
   }
 };
 
@@ -226,8 +366,6 @@ exports.delete = async (req, res) => {
 // ============================================
 
 const EMPLEADO_ATTRS = ['id', 'nombre', 'apellido', 'dni', 'cargo', 'telefono', 'email', 'direccion', 'fecha_ingreso'];
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PASSWORD_MIN = 8;
 
 const buscarMiCuenta = (id) =>
   Usuario.findByPk(id, {

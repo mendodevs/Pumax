@@ -4,7 +4,7 @@
  * - Llamadas a la API (otro dominio o /api): nunca se guardan, siempre van a la red.
  * Para forzar que todos los usuarios recarguen la app, cambiá VERSION.
  */
-const VERSION = "pumax-v1";
+const VERSION = "pumax-v2";
 const SHELL = [
   "/",
   "/manifest.webmanifest",
@@ -67,6 +67,22 @@ self.addEventListener("fetch", (event) => {
         })
         .catch(() => cached);
       return cached || network;
+    })
+  );
+});
+
+/* Notificaciones: al tocar una, se enfoca la app abierta o se abre en la pantalla indicada */
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/dashboard/Home";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const client of list) {
+        if ("focus" in client) {
+          return client.focus().then(() => ("navigate" in client ? client.navigate(url).catch(() => {}) : undefined));
+        }
+      }
+      return self.clients.openWindow(url);
     })
   );
 });

@@ -17,16 +17,18 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react-native";
-import ConfirmDialog from "./modals/ConfirmDialog";
-import NoticeBanner from "./modals/NoticeBanner";
+import ConfirmDialog from "./ConfirmDialog";
+import NoticeBanner from "./NoticeBanner";
 import { useNotice } from "../hooks/useNotice";
 import { colors } from "../constants/theme";
+import { useI18n } from "../i18n";
+import { useTheme } from "../context/SettingsContext";
 
 /* ---------- Piezas para armar celdas ---------- */
 
 /** Texto principal de una celda (nombre, etc.) */
 export const Primary = ({ children }: { children: ReactNode }) => (
-  <Text className="text-white font-semibold" numberOfLines={1}>
+  <Text className="text-ink font-semibold" numberOfLines={1}>
     {children}
   </Text>
 );
@@ -124,6 +126,8 @@ export default function ListScreen<T extends { id: number }>({
   renderNewModal,
   renderEditModal,
 }: Props<T>) {
+  const { t } = useI18n();
+  const theme = useTheme();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
   const { notice, showNotice } = useNotice();
@@ -135,7 +139,7 @@ export default function ListScreen<T extends { id: number }>({
   const [toDelete, setToDelete] = useState<T | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const o = feminine ? "a" : "o";
+  const g = feminine ? "f" : "m";
   const lower = noun.toLowerCase();
   const filtered = items.filter((item) => matches(item, search.toLowerCase()));
 
@@ -154,11 +158,11 @@ export default function ListScreen<T extends { id: number }>({
     setDeleting(true);
     try {
       await onDelete(toDelete.id);
-      showNotice("success", `${noun} "${getName(toDelete)}" eliminad${o} correctamente`);
+      showNotice("success", t(`lists.deleted.${g}`, { noun, name: getName(toDelete) }));
       onRetry();
     } catch (err) {
       const reason = err instanceof Error && err.message ? `: ${err.message}` : "";
-      showNotice("error", `No se pudo eliminar ${feminine ? "la" : "el"} ${lower}${reason}`);
+      showNotice("error", t(`lists.deleteFailed.${g}`, { noun: lower, reason }));
     } finally {
       setDeleting(false);
       setToDelete(null);
@@ -199,7 +203,7 @@ export default function ListScreen<T extends { id: number }>({
     return (
       <View className="bg-slate-800 border border-slate-700 rounded-2xl p-4 mb-3">
         <View className="flex-row items-start justify-between">
-          <Text className="text-white font-semibold text-base flex-1 pr-3">{getName(item)}</Text>
+          <Text className="text-ink font-semibold text-base flex-1 pr-3">{getName(item)}</Text>
           {actions(item)}
         </View>
         {lines.length > 0 && (
@@ -222,7 +226,7 @@ export default function ListScreen<T extends { id: number }>({
     return (
       <View className="flex-1 bg-slate-900 items-center justify-center">
         <ActivityIndicator size="large" color={colors.brandLight} />
-        <Text className="text-white mt-4">Cargando {title.toLowerCase()}...</Text>
+        <Text className="text-ink mt-4">{t("lists.loading", { title: title.toLowerCase() })}</Text>
       </View>
     );
   }
@@ -231,9 +235,9 @@ export default function ListScreen<T extends { id: number }>({
     return (
       <View className="flex-1 bg-slate-900 items-center justify-center px-4">
         <AlertTriangle color={colors.danger} size={48} />
-        <Text className="text-white text-lg mt-4 text-center">{error}</Text>
+        <Text className="text-ink text-lg mt-4 text-center">{error}</Text>
         <TouchableOpacity onPress={onRetry} className="bg-brand-500 px-6 py-3 rounded-xl mt-4">
-          <Text className="text-white font-semibold">Reintentar</Text>
+          <Text className="text-white font-semibold">{t("common.retry")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -249,7 +253,7 @@ export default function ListScreen<T extends { id: number }>({
             <Icon color={colors.wineLight} size={22} />
           </View>
           <View>
-            <Text className="text-2xl font-bold text-white">{title}</Text>
+            <Text className="text-2xl font-bold text-ink">{title}</Text>
             <Text className="text-slate-400 text-sm">{subtitle}</Text>
           </View>
         </View>
@@ -259,7 +263,7 @@ export default function ListScreen<T extends { id: number }>({
         >
           <Plus color="#fff" size={18} />
           <Text className="text-white font-bold ml-1">
-            {isMobile ? "Nuev" + o : `Nuev${o} ${lower}`}
+            {isMobile ? t(`lists.newShort.${g}`) : t(`lists.new.${g}`, { noun: lower })}
           </Text>
         </TouchableOpacity>
       </View>
@@ -270,10 +274,10 @@ export default function ListScreen<T extends { id: number }>({
         <Search color={colors.muted} size={20} />
         <TextInput
           placeholder={searchPlaceholder}
-          placeholderTextColor="#94a3b8"
+          placeholderTextColor={theme.placeholder}
           value={search}
           onChangeText={setSearch}
-          className="flex-1 ml-2 text-white py-1"
+          className="flex-1 ml-2 text-ink py-1"
         />
         {search ? (
           <TouchableOpacity onPress={() => setSearch("")}>
@@ -282,7 +286,7 @@ export default function ListScreen<T extends { id: number }>({
         ) : null}
       </View>
       <Text className="text-slate-400 text-xs mb-4 ml-1">
-        {filtered.length} de {items.length}
+        {t("lists.count", { shown: filtered.length, total: items.length })}
       </Text>
 
       {!isMobile && (
@@ -297,7 +301,7 @@ export default function ListScreen<T extends { id: number }>({
             </Text>
           ))}
           <Text className="text-slate-400 text-xs font-semibold uppercase w-24 text-right">
-            Acciones
+            {t("lists.actions")}
           </Text>
         </View>
       )}
@@ -315,7 +319,7 @@ export default function ListScreen<T extends { id: number }>({
           <View className="items-center py-12">
             <Icon color={colors.muted} size={32} />
             <Text className="text-slate-400 mt-3">
-              {search ? "No hay resultados para tu búsqueda." : `Todavía no hay ${plural} cargad${o}s.`}
+              {search ? t("lists.noResults") : t(`lists.empty.${g}`, { plural })}
             </Text>
           </View>
         }
@@ -334,7 +338,7 @@ export default function ListScreen<T extends { id: number }>({
         onClose: () => setNewVisible(false),
         onSuccess: () => {
           onRetry();
-          showNotice("success", `${noun} cread${o} correctamente`);
+          showNotice("success", t(`lists.created.${g}`, { noun }));
         },
       })}
 
@@ -344,17 +348,15 @@ export default function ListScreen<T extends { id: number }>({
         onClose: closeEdit,
         onSuccess: () => {
           onRetry();
-          showNotice("success", `${noun} actualizad${o} correctamente`);
+          showNotice("success", t(`lists.updated.${g}`, { noun }));
         },
       })}
 
       <ConfirmDialog
         visible={!!toDelete}
-        title={`Eliminar ${lower}`}
-        message={`¿Seguro que querés eliminar ${feminine ? "la" : "el"} ${lower} "${
-          toDelete ? getName(toDelete) : ""
-        }"? Esta acción no se puede deshacer.`}
-        confirmText="Eliminar"
+        title={t("lists.deleteTitle", { noun: lower })}
+        message={t(`lists.deleteConfirm.${g}`, { noun: lower, name: toDelete ? getName(toDelete) : "" })}
+        confirmText={t("common.delete")}
         destructive
         loading={deleting}
         onConfirm={confirmDelete}

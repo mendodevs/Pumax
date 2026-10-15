@@ -1,5 +1,6 @@
 import { ScrollViewStyleReset } from "expo-router/html";
 import type { PropsWithChildren } from "react";
+import { themeCss } from "../constants/palette";
 
 /**
  * HTML raíz de la versión web (PWA).
@@ -14,12 +15,25 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   });
 }`;
 
+/** Aplica el tema guardado antes del primer dibujo, para que no haya destello oscuro → claro */
+const APPLY_THEME = `
+(function () {
+  try {
+    var s = JSON.parse(localStorage.getItem('pumax_settings') || '{}');
+    var t = s.theme;
+    if (t === 'system') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    if (s.language === 'en') document.documentElement.lang = 'en';
+  } catch (e) {}
+})();`;
+
 const BASE_STYLES = `
-@font-face { font-family: 'Montserrat'; font-weight: 50; font-style: normal; font-display: swap; src: url('/fonts/Montserrat_400Regular.ttf') format('truetype'); }
-@font-face { font-family: 'Montserrat'; font-weight: 100; font-style: normal; font-display: swap; src: url('/fonts/Montserrat_500Medium.ttf') format('truetype'); }
-@font-face { font-family: 'Montserrat'; font-weight: 200; font-style: normal; font-display: swap; src: url('/fonts/Montserrat_600SemiBold.ttf') format('truetype'); }
-@font-face { font-family: 'Montserrat'; font-weight: 300; font-style: normal; font-display: swap; src: url('/fonts/Montserrat_700Bold.ttf') format('truetype'); }
-html, body { background-color: #0d1210; }
+${themeCss()}
+@font-face { font-family: 'Montserrat'; font-weight: 400; font-style: normal; font-display: swap; src: url('/fonts/Montserrat_400Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-weight: 500; font-style: normal; font-display: swap; src: url('/fonts/Montserrat_500Medium.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-weight: 600; font-style: normal; font-display: swap; src: url('/fonts/Montserrat_600SemiBold.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/Montserrat_700Bold.ttf') format('truetype'); }
+html, body { background-color: rgb(var(--c-slate-950)); }
 body { overscroll-behavior-y: none; }
 /* Fuente de la app: React Native Web fija su propia fuente en cada texto, por eso el !important */
 body, div[dir="auto"], span[dir="auto"], input, textarea, button, select {
@@ -53,6 +67,7 @@ export default function Root({ children }: PropsWithChildren) {
 
         <ScrollViewStyleReset />
         <style dangerouslySetInnerHTML={{ __html: BASE_STYLES }} />
+        <script dangerouslySetInnerHTML={{ __html: APPLY_THEME }} />
         <script dangerouslySetInnerHTML={{ __html: REGISTER_SERVICE_WORKER }} />
       </head>
       <body>{children}</body>

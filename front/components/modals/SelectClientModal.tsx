@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Modal, FlatList } from 'react-native';
 import { X, Search } from 'lucide-react-native';
+import { useI18n } from '../../i18n';
+import { useTheme } from "../../context/SettingsContext";
 
 interface Client {
   id: number;
@@ -24,6 +26,8 @@ export default function SelectClientModal({
   onSelect,
   selectedClientId
 }: SelectClientModalProps) {
+  const { t } = useI18n();
+  const theme = useTheme();
   const [searchText, setSearchText] = useState('');
 
   // Filtrar clientes por nombre, CUIT o razón social
@@ -48,7 +52,7 @@ export default function SelectClientModal({
         <View className="bg-slate-900 rounded-lg p-6 w-11/12 max-w-md" style={{ maxHeight: '80%' }}>
           {/* Header */}
           <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-white text-xl font-bold">Seleccionar Cliente</Text>
+            <Text className="text-ink text-xl font-bold">{t("billing.clientModal.title")}</Text>
             <TouchableOpacity onPress={onClose}>
               <X color="#FFF" size={24} />
             </TouchableOpacity>
@@ -56,17 +60,17 @@ export default function SelectClientModal({
 
           {/* Buscador */}
           <View className="bg-slate-800 rounded-lg px-4 py-3 mb-4 flex-row items-center border border-gray-600">
-            <Search color="#9CA3AF" size={20} />
+            <Search color={theme.muted} size={20} />
             <TextInput
               value={searchText}
               onChangeText={setSearchText}
-              placeholder="Buscar por nombre, CUIT..."
-              placeholderTextColor="#9CA3AF"
-              className="flex-1 ml-2 text-white"
+              placeholder={t("billing.clientModal.searchPlaceholder")}
+              placeholderTextColor={theme.placeholder}
+              className="flex-1 ml-2 text-ink"
             />
             {searchText.length > 0 && (
               <TouchableOpacity onPress={() => setSearchText('')}>
-                <X color="#9CA3AF" size={20} />
+                <X color={theme.muted} size={20} />
               </TouchableOpacity>
             )}
           </View>
@@ -91,14 +95,14 @@ export default function SelectClientModal({
                     <Text className="text-slate-300 text-sm mt-1">{item.razon_social}</Text>
                   )}
                   {item.cuit && (
-                    <Text className="text-slate-400 text-sm mt-1">CUIT: {item.cuit}</Text>
+                    <Text className="text-slate-400 text-sm mt-1">{t("billing.clientModal.cuit", { cuit: item.cuit })}</Text>
                   )}
                 </TouchableOpacity>
               )}
               ListEmptyComponent={
                 <View className="items-center justify-center py-8">
                   <Text className="text-slate-400 text-base">
-                    {searchText ? 'No se encontraron clientes' : 'No hay clientes disponibles'}
+                    {searchText ? t("billing.clientModal.noMatch") : t("billing.clientModal.none")}
                   </Text>
                 </View>
               }
@@ -111,7 +115,7 @@ export default function SelectClientModal({
               onPress={onClose}
               className="bg-gray-600 px-4 py-3 rounded-lg"
             >
-              <Text className="text-white text-center font-semibold">Cancelar</Text>
+              <Text className="text-ink text-center font-semibold">{t("common.cancel")}</Text>
             </TouchableOpacity>
           </View>
         </View>

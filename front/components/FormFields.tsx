@@ -1,6 +1,7 @@
 import { Children, useState, type ReactNode } from "react";
 import { View, Text, TextInput, TouchableOpacity, type KeyboardTypeOptions } from "react-native";
 import { Eye, EyeOff } from "lucide-react-native";
+import { useTheme } from "../context/SettingsContext";
 
 type FieldProps = {
   label: string;
@@ -39,6 +40,7 @@ export function Field({
   secureTextEntry,
   editable = true,
 }: FieldProps) {
+  const theme = useTheme();
   const [focused, setFocused] = useState(false);
   const [hidden, setHidden] = useState(true);
   const border = error ? "border-red-500" : focused ? "border-brand-400" : "border-slate-600";
@@ -55,7 +57,7 @@ export function Field({
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor="#64748b"
+          placeholderTextColor={theme.placeholder}
           keyboardType={keyboardType}
           multiline={multiline}
           autoCapitalize={autoCapitalize}
@@ -63,13 +65,13 @@ export function Field({
           editable={editable}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          className="flex-1 text-white py-3"
+          className="flex-1 text-ink py-3"
           style={multiline ? { minHeight: 88, textAlignVertical: "top" } : undefined}
         />
         {suffix ? <Text className="text-slate-400 ml-2">{suffix}</Text> : null}
         {secureTextEntry ? (
           <TouchableOpacity onPress={() => setHidden(!hidden)} className="ml-2 p-1">
-            {hidden ? <Eye color="#94a3b8" size={20} /> : <EyeOff color="#94a3b8" size={20} />}
+            {hidden ? <Eye color={theme.muted} size={20} /> : <EyeOff color={theme.muted} size={20} />}
           </TouchableOpacity>
         ) : null}
       </View>

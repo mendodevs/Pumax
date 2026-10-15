@@ -1,99 +1,89 @@
 import { api } from './api.service';
+import type { Rol } from '../types/account.types';
 
-// Tipos
+export type { Rol };
+
+/** Ficha de empleado de la persona (puede no existir en usuarios viejos) */
+export interface UserEmpleado {
+  id: number;
+  nombre: string;
+  apellido: string;
+  dni: string;
+  cargo: string | null;
+  telefono: string | null;
+  email: string | null;
+}
+
 export interface User {
   id: number;
   username: string;
-  nombre: string;
-  apellido?: string;
-  email?: string;
-  rol: 'ADMIN' | 'EMPLEADO' | 'Empleado' | 'Admin';
+  rol: Rol;
   activo: boolean;
-  empleado_id?: number;
-  ultimo_acceso?: string;
-  created_at?: string;
-  updated_at?: string;
+  empleado_id: number | null;
+  ultimo_acceso: string | null;
+  fecha_creacion: string | null;
+  empleado: UserEmpleado | null;
+}
+
+export interface EmpleadoInput {
+  nombre: string;
+  apellido: string;
+  dni: string;
+  cargo?: string;
+  email?: string;
+  telefono?: string;
 }
 
 export interface CreateUserData {
   username: string;
-  password: string;
-  nombre: string;
-  apellido?: string;
-  email?: string;
-  rol: 'ADMIN' | 'EMPLEADO';
-  empleado_id?: number;
+  rol: Rol;
+  /** Sin contraseña, el servidor genera una temporal */
+  password?: string;
+  empleado: EmpleadoInput;
 }
 
 export interface UpdateUserData {
-  username?: string;
-  password?: string;
-  nombre?: string;
-  apellido?: string;
-  email?: string;
-  rol?: 'ADMIN' | 'EMPLEADO';
+  rol?: Rol;
   activo?: boolean;
+  empleado?: Partial<EmpleadoInput>;
 }
 
-// Obtener todos los usuarios
-export async function getAllUsers() {
+/** Todos los usuarios, activos e inactivos (solo ADMIN) */
+export async function getAllUsers(): Promise<User[]> {
   const response = await api.get<{ success: boolean; data: User[] }>('/usuarios');
   return response.data;
 }
 
-// Obtener un usuario por ID
-export async function getUserById(id: number) {
-  const response = await api.get<{ success: boolean; data: User }>(`/usuarios/${id}`);
-  return response.data;
-}
-
-// Crear un nuevo usuario
+/** Crea el usuario con su ficha de empleado. `passwordTemporal` viene solo si el servidor la generó. */
 export async function createUser(data: CreateUserData) {
-  const response = await api.post<{ success: boolean; data: User; message: string }>(
+  const response = await api.post<{ success: boolean; data: User; password_temporal?: string }>(
     '/usuarios',
     data
   );
-  return response;
+  return { user: response.data, passwordTemporal: response.password_temporal };
 }
 
-// Actualizar un usuario
-export async function updateUser(id: number, data: UpdateUserData) {
-  const response = await api.put<{ success: boolean; data: User; message: string }>(
-    `/usuarios/${id}`,
-    data
+export async function updateUser(id: number, data: UpdateUserData): Promise<User> {
+  const response = await api.put<{ success: boolean; data: User }>(`/usuarios/${id}`, data);
+  return response.data;
+}
+
+/** Desactivar o reactivar (no se borra nunca: conserva el historial) */
+export const setUserActive = (id: number, activo: boolean) => updateUser(id, { activo });
+
+/** Reinicia la contraseña de otra persona. Sin `password`, el servidor genera una temporal. */
+export async function resetUserPassword(id: number, password?: string) {
+  const response = await api.put<{ success: boolean; password_temporal?: string }>(
+    `/usuarios/${id}/password`,
+    password ? { password_nueva: password } : {}
   );
-  return response;
+  return { passwordTemporal: response.password_temporal };
 }
 
-// Eliminar (desactivar) un usuario
-export async function deleteUser(id: number) {
-  const response = await api.delete<{ success: boolean; message: string }>(
-    `/usuarios/${id}`
-  );
-  return response;
-}
-
-// Obtener perfil del usuario actual
+// Perfil del usuario que inició sesión
 export async function getCurrentUser() {
   const response = await api.get<{ success: boolean; data: User; message: string }>(
     '/usuarios/verificar-sesion'
   );
   return response.data;
-}
-
-// Actualizar perfil del usuario actual
-export async function updateCurrentUserProfile(data: {
-  nombre?: string;
-  apellido?: string;
-  email?: string;
-  password?: string;
-}) {
-  // Primero obtenemos el usuario actual para saber su ID
-  const currentUser = await getCurrentUser();
-
-  const response = await api.put<{ success: boolean; data: User; message: string }>(
-    `/usuarios/${currentUser.id}`,
-    data
-  );
-  return response;
 }

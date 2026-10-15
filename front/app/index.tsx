@@ -1,10 +1,15 @@
-import { View, Text, TextInput, TouchableOpacity, Image, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { useAuth } from "../hooks/useAuth";
 import "./../global.css";
+import { useI18n } from "../i18n";
+import { useTheme } from "../context/SettingsContext";
+import Logo from "../components/Logo";
 
 export default function LoginScreen() {
+  const { t } = useI18n();
+  const theme = useTheme();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,7 +31,7 @@ export default function LoginScreen() {
 
     // Validación básica
     if (!username.trim() || !password.trim()) {
-      setError("Por favor complete todos los campos");
+      setError(t("login.empty"));
       return;
     }
 
@@ -40,47 +45,43 @@ export default function LoginScreen() {
         // La navegación se maneja en el useEffect
         router.replace("/dashboard/Home");
       } else {
-        setError(result.message || "Error al iniciar sesión");
+        setError(result.message || t("login.failed"));
       }
     } catch (err) {
-      setError("Error de conexión. Por favor intente nuevamente.");
+      setError(t("login.connection"));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View className="flex-1 items-center justify-center bg-slate-800 px-4">
-      <View className="w-full max-w-sm bg-slate-700 p-14 rounded-sm shadow-lg border-b-4 border-wine-600">
-        <View className="items-center mb-6 rounded-xl p-4">
-          <Image
-            source={require("../assets/images/pumax-blanco.png")}
-            style={{ width: 200, height: 128 }}
-            resizeMode="contain"
-          />
+    <View className="flex-1 items-center justify-center bg-slate-950 px-4">
+      <View className="w-full max-w-sm bg-slate-900 p-6 rounded-2xl shadow-lg border-t-4 border-wine-600">
+        <View className="items-center mb-6">
+          <Logo width={190} />
         </View>
 
-        <Text className="text-white mb-1">Usuario</Text>
+        <Text className="text-ink mb-1">{t("login.username")}</Text>
         <TextInput
           value={username}
           onChangeText={setUsername}
-          placeholder="nombre de usuario"
-          placeholderTextColor="#9CA3AF"
-          className="border border-slate-600 focus:border-brand-400 rounded-sm px-3 py-2 mb-4 text-white"
+          placeholder={t("login.usernamePlaceholder")}
+          placeholderTextColor={theme.placeholder}
+          className="border border-slate-600 focus:border-brand-400 rounded-lg px-3 py-2 mb-4 text-ink"
           autoCapitalize="none"
           editable={!loading}
           returnKeyType="next"
           onSubmitEditing={() => passwordInputRef.current?.focus()}
         />
 
-        <Text className="text-white mb-1">Contraseña</Text>
+        <Text className="text-ink mb-1">{t("login.password")}</Text>
         <TextInput
           ref={passwordInputRef}
           value={password}
           onChangeText={setPassword}
           placeholder="••••••••"
-          placeholderTextColor="#9CA3AF"
-          className="border border-slate-600 focus:border-brand-300 rounded-sm px-3 py-2 mb-6 text-white"
+          placeholderTextColor={theme.placeholder}
+          className="border border-slate-600 focus:border-brand-400 rounded-lg px-3 py-2 mb-2 text-ink"
           secureTextEntry
           editable={!loading}
           returnKeyType="go"
@@ -88,30 +89,26 @@ export default function LoginScreen() {
         />
 
         {error ? (
-          <Text className="text-wine-600 text-sm mb-4">{error}</Text>
+          <Text className="text-red-500 text-sm mb-4">{error}</Text>
         ) : null}
-      <View className="p-6">
+
         <TouchableOpacity
           onPress={handleLogin}
           disabled={loading}
-          className={`bg-brand-700 rounded-lg py-2 ${loading ? 'opacity-50' : 'active:bg-brand-500'}`}
+          className={`bg-brand-500 rounded-lg py-3 ${loading ? 'opacity-50' : 'active:bg-brand-700'}`}
         >
           {loading ? (
             <ActivityIndicator color="white" />
           ) : (
             <Text className="text-center text-white font-semibold text-base">
-              Entrar
+              {t("login.submit")}
             </Text>
           )}
         </TouchableOpacity>
 
         <Text className="text-center text-gray-500 text-sm mt-4">
-          ¿Olvidaste tu contraseña?
+          {t("login.forgot")}
         </Text>
-        <Text className="text-center text-gray-500 text-sm mt-4">
-          ¿No tenés cuenta? Registrate
-        </Text>
-      </View>
       </View>
     </View>
   );

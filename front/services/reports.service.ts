@@ -282,3 +282,41 @@ export async function getRentabilidadCategorias(params: {
   );
   return response.data;
 }
+
+// ============================================
+// RESUMEN SEMANAL / MENSUAL
+// ============================================
+export type PeriodoTipo = 'semana' | 'mes';
+
+export interface ResumenTotales {
+  ventas: number;
+  pedidos: number;
+  ticket_promedio: number;
+  clientes: number;
+  unidades: number;
+  ganancia_estimada: number;
+  facturas: number;
+  facturado: number;
+}
+
+export interface ResumenData {
+  periodo: { tipo: PeriodoTipo; desde: string; hasta: string; etiqueta: string; es_actual: boolean };
+  anterior_desde: string;
+  actual: ResumenTotales;
+  anterior: ResumenTotales;
+  serie: Array<{ dia: string; ventas: number; pedidos: number }>;
+  por_estado: Array<{ estado: string; cantidad: number }>;
+  por_tipo: Array<{ tipo: 'BLANCO' | 'NEGRO'; pedidos: number; ventas: number }>;
+  top_productos: Array<{ id: number; codigo: string; descripcion: string; unidades: number; monto: number }>;
+  top_clientes: Array<{ id: number; nombre: string; pedidos: number; monto: number }>;
+  por_categoria: Array<{ categoria: string; monto: number }>;
+  movimientos_stock: Record<'ENTRADA' | 'SALIDA' | 'AJUSTE', { movimientos: number; unidades: number }>;
+  stock_actual: { bajo: number; agotado: number };
+}
+
+export async function getResumen(periodo: PeriodoTipo, fecha: string) {
+  const response = await api.get<{ success: boolean; data: ResumenData }>(
+    `/reportes/resumen?periodo=${periodo}&fecha=${fecha}`
+  );
+  return response.data;
+}

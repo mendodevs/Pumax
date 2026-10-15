@@ -10,8 +10,12 @@ import { useState } from "react";
 import { useSales } from "../../hooks/useSales";
 import { exportSalesToExcel } from "../../services/sales.service";
 import { Search, ChevronDown, ChevronUp, Download } from "lucide-react-native";
+import { useI18n } from "../../i18n";
+import { useTheme } from "../../context/SettingsContext";
 
 export default function SalesPanel() {
+  const { t, locale } = useI18n();
+  const theme = useTheme();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -31,9 +35,9 @@ export default function SalesPanel() {
         fecha_hasta: lastDay.toISOString().split("T")[0],
       });
 
-      alert("Exportación iniciada. El archivo se descargará en breve.");
+      alert(t("stock.sales.exportStarted"));
     } catch (err: any) {
-      alert(`Error al exportar: ${err.message || "No se pudo exportar"}`);
+      alert(t("stock.sales.exportError", { message: err.message || t("stock.sales.exportFail") }));
     } finally {
       setExportLoading(false);
     }
@@ -73,14 +77,26 @@ export default function SalesPanel() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString("es-AR");
+    return date.toLocaleDateString(locale);
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("es-AR", {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: "ARS",
     }).format(amount);
+  };
+
+  const statusLabel = (estado: string) => {
+    const key = `stock.status.${estado}`;
+    const label = t(key);
+    return label === key ? estado.replace("_", " ") : label;
+  };
+
+  const typeLabel = (tipo: string) => {
+    const key = `stock.opType.${tipo}`;
+    const label = t(key);
+    return label === key ? tipo : label;
   };
 
   const toggleExpand = (id: number) => {
@@ -91,7 +107,7 @@ export default function SalesPanel() {
     return (
       <View className="flex-1 bg-slate-900 items-center justify-center">
         <ActivityIndicator size="large" color="#45bd66" />
-        <Text className="text-white mt-4">Cargando ventas...</Text>
+        <Text className="text-ink mt-4">{t("stock.sales.loading")}</Text>
       </View>
     );
   }
@@ -99,12 +115,12 @@ export default function SalesPanel() {
   if (error) {
     return (
       <View className="flex-1 bg-slate-900 items-center justify-center p-4">
-        <Text className="text-red-500 text-lg mb-4">Error: {error}</Text>
+        <Text className="text-red-500 text-lg mb-4">{t("stock.errorPrefix", { error })}</Text>
         <TouchableOpacity
           onPress={() => refetch()}
           className="bg-brand-500 px-6 py-3 rounded-lg"
         >
-          <Text className="text-white font-semibold">Reintentar</Text>
+          <Text className="text-white font-semibold">{t("common.retry")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -125,7 +141,7 @@ export default function SalesPanel() {
             ) : (
               <>
                 <Download color="white" size={18} />
-                <Text className="text-white font-semibold ml-2">Excel</Text>
+                <Text className="text-white font-semibold ml-2">{t("stock.sales.excel")}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -133,13 +149,13 @@ export default function SalesPanel() {
 
         {/* Barra de búsqueda */}
         <View className="flex-row items-center bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 mb-3">
-          <Search color="#9CA3AF" size={20} />
+          <Search color={theme.muted} size={20} />
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Buscar por cliente o ID..."
-            placeholderTextColor="#9CA3AF"
-            className="flex-1 ml-2 text-white"
+            placeholder={t("stock.sales.searchPlaceholder")}
+            placeholderTextColor={theme.placeholder}
+            className="flex-1 ml-2 text-ink"
           />
         </View>
 
@@ -153,25 +169,25 @@ export default function SalesPanel() {
             onPress={() => setFilterStatus("")}
             className={`px-4 py-2 rounded-full mr-2 ${filterStatus === "" ? "bg-brand-700" : "bg-slate-800"}`}
           >
-            <Text className="text-white">Todos</Text>
+            <Text className="text-white">{t("stock.all")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setFilterStatus("PENDIENTE")}
             className={`px-4 py-2 rounded-full mr-2 ${filterStatus === "PENDIENTE" ? "bg-yellow-600" : "bg-slate-800"}`}
           >
-            <Text className="text-white">Pendiente</Text>
+            <Text className="text-white">{t("stock.filter.pending")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setFilterStatus("EN_PROCESO")}
             className={`px-4 py-2 rounded-full mr-2 ${filterStatus === "EN_PROCESO" ? "bg-wine-600" : "bg-slate-800"}`}
           >
-            <Text className="text-white">En Proceso</Text>
+            <Text className="text-white">{t("stock.filter.inProgress")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setFilterStatus("COMPLETADO")}
             className={`px-4 py-2 rounded-full mr-2 ${filterStatus === "COMPLETADO" ? "bg-brand-500" : "bg-slate-800"}`}
           >
-            <Text className="text-white">Completado</Text>
+            <Text className="text-white">{t("stock.filter.completed")}</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -181,7 +197,7 @@ export default function SalesPanel() {
         {filteredSales.length === 0 ? (
           <View className="items-center justify-center py-12">
             <Text className="text-gray-400 text-lg">
-              No se encontraron ventas
+              {t("stock.sales.notFound")}
             </Text>
           </View>
         ) : (
@@ -197,33 +213,33 @@ export default function SalesPanel() {
                 <View className="flex-row justify-between items-start mb-2">
                   <View className="flex-1">
                     <View className="flex-row items-center mb-1">
-                      <Text className="text-white font-bold text-lg mr-2">
-                        Venta #{sale.id}
+                      <Text className="text-ink font-bold text-lg mr-2">
+                        {t("stock.sales.saleNum", { id: sale.id })}
                       </Text>
                       <View
                         className={`px-2 py-1 rounded ${getTypeColor(sale.tipo_operacion)}`}
                       >
                         <Text className="text-xs font-semibold">
-                          {sale.tipo_operacion}
+                          {typeLabel(sale.tipo_operacion)}
                         </Text>
                       </View>
                     </View>
                     <Text className="text-gray-300">
-                      {sale.cliente?.nombre || `Cliente #${sale.cliente_id}`}
+                      {sale.cliente?.nombre || t("stock.sales.customerNum", { id: sale.cliente_id })}
                     </Text>
                     <Text className="text-gray-400 text-sm">
                       {formatDate(sale.fecha_pedido)}
                     </Text>
                   </View>
                   <View className="items-end">
-                    <Text className="text-white font-bold text-lg">
+                    <Text className="text-ink font-bold text-lg">
                       {formatCurrency(sale.total)}
                     </Text>
                     <View
                       className={`px-3 py-1 rounded-full ${getStatusColor(sale.estado)} mt-1`}
                     >
-                      <Text className="text-white text-xs font-semibold">
-                        {sale.estado.replace("_", " ")}
+                      <Text className="text-ink text-xs font-semibold">
+                        {statusLabel(sale.estado)}
                       </Text>
                     </View>
                   </View>
@@ -231,12 +247,12 @@ export default function SalesPanel() {
 
                 <View className="flex-row items-center justify-between mt-2">
                   <Text className="text-gray-400 text-sm">
-                    {expandedId === sale.id ? "Ver menos" : "Ver detalles"}
+                    {expandedId === sale.id ? t("stock.viewLess") : t("stock.viewMore")}
                   </Text>
                   {expandedId === sale.id ? (
-                    <ChevronUp color="#9CA3AF" size={20} />
+                    <ChevronUp color={theme.muted} size={20} />
                   ) : (
-                    <ChevronDown color="#9CA3AF" size={20} />
+                    <ChevronDown color={theme.muted} size={20} />
                   )}
                 </View>
               </TouchableOpacity>
@@ -245,47 +261,47 @@ export default function SalesPanel() {
               {expandedId === sale.id && (
                 <View className="px-4 pb-4 border-t border-slate-700 pt-3">
                   <View className="flex-row justify-between mb-2">
-                    <Text className="text-gray-400">Subtotal:</Text>
-                    <Text className="text-white">
+                    <Text className="text-gray-400">{t("stock.subtotal")}</Text>
+                    <Text className="text-ink">
                       {formatCurrency(sale.subtotal)}
                     </Text>
                   </View>
                   {sale.descuento > 0 && (
                     <View className="flex-row justify-between mb-2">
-                      <Text className="text-gray-400">Descuento:</Text>
+                      <Text className="text-gray-400">{t("stock.discount")}</Text>
                       <Text className="text-brand-400">
                         -{formatCurrency(sale.descuento)}
                       </Text>
                     </View>
                   )}
                   <View className="flex-row justify-between mb-2">
-                    <Text className="text-white font-bold">Total:</Text>
-                    <Text className="text-white font-bold">
+                    <Text className="text-ink font-bold">{t("stock.total")}</Text>
+                    <Text className="text-ink font-bold">
                       {formatCurrency(sale.total)}
                     </Text>
                   </View>
                   {sale.observaciones && (
                     <View className="mt-3 pt-3 border-t border-slate-700">
-                      <Text className="text-gray-400 mb-1">Observaciones:</Text>
-                      <Text className="text-white">{sale.observaciones}</Text>
+                      <Text className="text-gray-400 mb-1">{t("stock.notes")}</Text>
+                      <Text className="text-ink">{sale.observaciones}</Text>
                     </View>
                   )}
                   {sale.items && sale.items.length > 0 && (
                     <View className="mt-3 pt-3 border-t border-slate-700">
-                      <Text className="text-gray-400 mb-2">Productos:</Text>
+                      <Text className="text-gray-400 mb-2">{t("stock.products")}</Text>
                       {sale.items.map((item) => (
                         <View
                           key={item.id}
                           className="flex-row justify-between mb-2"
                         >
-                          <Text className="text-white flex-1">
+                          <Text className="text-ink flex-1">
                             {item.producto?.nombre ||
-                              `Producto #${item.producto_id}`}
+                              t("stock.productNum", { id: item.producto_id })}
                           </Text>
                           <Text className="text-gray-400 mx-2">
                             x{item.cantidad}
                           </Text>
-                          <Text className="text-white">
+                          <Text className="text-ink">
                             {formatCurrency(item.subtotal)}
                           </Text>
                         </View>
@@ -302,13 +318,13 @@ export default function SalesPanel() {
       {/* Footer con total */}
       <View className="bg-slate-800 px-4 py-3 border-t border-slate-700">
         <View className="flex-row justify-between items-center">
-          <Text className="text-gray-300">Total de ventas:</Text>
-          <Text className="text-white font-bold text-lg">
+          <Text className="text-gray-300">{t("stock.sales.totalSales")}</Text>
+          <Text className="text-ink font-bold text-lg">
             {filteredSales.length}
           </Text>
         </View>
         <View className="flex-row justify-between items-center mt-1">
-          <Text className="text-gray-300">Monto total:</Text>
+          <Text className="text-gray-300">{t("stock.totalAmount")}</Text>
           <Text className="text-brand-400 font-bold text-lg">
             {formatCurrency(
               filteredSales.reduce((sum, sale) => sum + sale.total, 0)

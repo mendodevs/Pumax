@@ -10,38 +10,30 @@ import {
   TouchableWithoutFeedback,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { useI18n } from "../../i18n";
+import { useTheme } from "../../context/SettingsContext";
 
-export default function SpecialStockModal({ visible, onClose }) {
+export default function SpecialStockModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { t, locale } = useI18n();
+  const theme = useTheme();
   const [tipo, setTipo] = useState("Entrada");
   const [producto, setProducto] = useState("");
   const [cantidad, setCantidad] = useState("");
   const [fecha, setFecha] = useState(new Date());
   const [mostrarFecha, setMostrarFecha] = useState(false);
-  const [motivo, setMotivo] = useState("Seleccionar motivo");
+  const [motivo, setMotivo] = useState("");
   const [motivoOpen, setMotivoOpen] = useState(false);
 
-  const motivosEntrada = [
-    "Devolución de cliente",
-    "Ajuste positivo / Corrección de inventario",
-    "Producción terminada",
-    "Transferencia desde otra sucursal",
-    "Donación recibida",
-  ];
-
-  const motivosSalida = [
-    "Devolución a proveedor",
-    "Ajuste negativo / Pérdida de inventario",
-    "Uso interno / Consumo propio",
-    "Transferencia a otra sucursal",
-    "Donación o promoción",
-  ];
+  // Se guardan las claves; el texto se traduce al mostrarlo
+  const motivosEntrada = ["in.return", "in.adjust", "in.production", "in.transfer", "in.donation"];
+  const motivosSalida = ["out.return", "out.adjust", "out.internal", "out.transfer", "out.donation"];
 
   const motivosDisponibles =
     tipo === "Entrada" ? motivosEntrada : motivosSalida;
 
   const handleRegistrar = () => {
-    if (!producto || !cantidad || motivo === "Seleccionar motivo") {
-      alert("Por favor completa todos los campos obligatorios");
+    if (!producto || !cantidad || !motivo) {
+      alert(t("special.required"));
       return;
     }
 
@@ -53,12 +45,12 @@ export default function SpecialStockModal({ visible, onClose }) {
       motivo,
     };
 
-    alert("Movimiento registrado correctamente ✅");
+    alert(t("special.saved"));
 
     // Limpiar campos
     setProducto("");
     setCantidad("");
-    setMotivo("Seleccionar motivo");
+    setMotivo("");
     onClose();
   };
 
@@ -78,13 +70,13 @@ export default function SpecialStockModal({ visible, onClose }) {
       <View className="absolute inset-0 justify-center items-center px-4">
         <View className="bg-slate-900 w-full max-w-md rounded-2xl p-6 shadow-lg border border-slate-700">
           <ScrollView showsVerticalScrollIndicator={true}>
-            <Text className="text-xl font-bold mb-6 text-white text-center">
-              Movimiento de stock extraordinario
+            <Text className="text-xl font-bold mb-6 text-ink text-center">
+              {t("special.title")}
             </Text>
 
             {/* Tipo */}
-            <Text className="text-white mb-2 font-semibold">
-              Tipo de movimiento
+            <Text className="text-ink mb-2 font-semibold">
+              {t("special.type")}
             </Text>
             <View className="flex-row justify-between mb-4">
               <TouchableOpacity
@@ -93,7 +85,7 @@ export default function SpecialStockModal({ visible, onClose }) {
                 }`}
                 onPress={() => {
                   setTipo("Entrada");
-                  setMotivo("Seleccionar motivo");
+                  setMotivo("");
                   setMotivoOpen(false);
                 }}
               >
@@ -102,7 +94,7 @@ export default function SpecialStockModal({ visible, onClose }) {
                     tipo === "Entrada" ? "text-white" : "text-gray-400"
                   }`}
                 >
-                  Entrada
+                  {t("special.in")}
                 </Text>
               </TouchableOpacity>
 
@@ -112,7 +104,7 @@ export default function SpecialStockModal({ visible, onClose }) {
                 }`}
                 onPress={() => {
                   setTipo("Salida");
-                  setMotivo("Seleccionar motivo");
+                  setMotivo("");
                   setMotivoOpen(false);
                 }}
               >
@@ -121,38 +113,38 @@ export default function SpecialStockModal({ visible, onClose }) {
                     tipo === "Salida" ? "text-white" : "text-gray-400"
                   }`}
                 >
-                  Salida
+                  {t("special.out")}
                 </Text>
               </TouchableOpacity>
             </View>
 
             {/* Producto */}
-            <Text className="text-white mb-2 font-semibold">Producto</Text>
+            <Text className="text-ink mb-2 font-semibold">{t("special.product")}</Text>
             <TextInput
-              className="bg-slate-700 border border-gray-500 rounded-xl p-3 mb-4 text-base text-white"
-              placeholder="Ej: Tornillos, Ladrillos, etc."
-              placeholderTextColor="#9ca3af"
+              className="bg-slate-700 border border-gray-500 rounded-xl p-3 mb-4 text-base text-ink"
+              placeholder={t("special.productPh")}
+              placeholderTextColor={theme.placeholder}
               value={producto}
               onChangeText={setProducto}
             />
 
             {/* Cantidad */}
-            <Text className="text-white mb-2 font-semibold">Cantidad</Text>
+            <Text className="text-ink mb-2 font-semibold">{t("special.qty")}</Text>
             <TextInput
-              className="bg-slate-700 border border-gray-500 rounded-xl p-3 mb-4 text-base text-white"
-              placeholder="Ej: 20"
-              placeholderTextColor="#9ca3af"
+              className="bg-slate-700 border border-gray-500 rounded-xl p-3 mb-4 text-base text-ink"
+              placeholder={t("special.qtyPh")}
+              placeholderTextColor={theme.placeholder}
               keyboardType="numeric"
               value={cantidad}
               onChangeText={setCantidad}
             />
 
             {/* Fecha */}
-            <Text className="text-white mb-2 font-semibold">Fecha</Text>
+            <Text className="text-ink mb-2 font-semibold">{t("special.date")}</Text>
             {Platform.OS === "web" ? (
               <input
                 type="date"
-                className="bg-slate-700 border border-gray-500 rounded-xl p-3 mb-4 text-base w-full text-white"
+                className="bg-slate-700 border border-gray-500 rounded-xl p-3 mb-4 text-base w-full text-ink"
                 value={fecha.toISOString().split("T")[0]}
                 onChange={(e) => setFecha(new Date(e.target.value))}
               />
@@ -162,8 +154,8 @@ export default function SpecialStockModal({ visible, onClose }) {
                   className="bg-slate-700 border border-gray-500 rounded-xl p-3 mb-4"
                   onPress={() => setMostrarFecha(true)}
                 >
-                  <Text className="text-white text-center">
-                    {fecha.toLocaleDateString()}
+                  <Text className="text-ink text-center">
+                    {fecha.toLocaleDateString(locale)}
                   </Text>
                 </TouchableOpacity>
                 {mostrarFecha && (
@@ -181,13 +173,13 @@ export default function SpecialStockModal({ visible, onClose }) {
             )}
 
             {/* Motivo */}
-            <Text className="text-white mb-2 font-semibold">Motivo</Text>
+            <Text className="text-ink mb-2 font-semibold">{t("special.reason")}</Text>
             <TouchableOpacity
               className="flex-row justify-between items-center bg-slate-700 rounded-xl p-3"
               onPress={() => setMotivoOpen(!motivoOpen)}
             >
-              <Text className="text-base text-white">{motivo}</Text>
-              <Text className="text-white">{motivoOpen ? "▲" : "▼"}</Text>
+              <Text className="text-base text-ink">{motivo ? t(`special.${motivo}`) : t("special.reasonPh")}</Text>
+              <Text className="text-ink">{motivoOpen ? "▲" : "▼"}</Text>
             </TouchableOpacity>
 
             {motivoOpen && (
@@ -201,7 +193,7 @@ export default function SpecialStockModal({ visible, onClose }) {
                       setMotivoOpen(false);
                     }}
                   >
-                    <Text className="text-white">{m}</Text>
+                    <Text className="text-ink">{t(`special.${m}`)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -214,7 +206,7 @@ export default function SpecialStockModal({ visible, onClose }) {
                 className=" mr-2 bg-brand-700 rounded-xl p-4"
               >
                 <Text className="text-white text-center font-semibold">
-                  Cancelar
+                  {t("common.cancel")}
                 </Text>
               </TouchableOpacity>
 
@@ -223,7 +215,7 @@ export default function SpecialStockModal({ visible, onClose }) {
                 className=" ml-2 bg-brand-500 rounded-2xl p-4"
               >
                 <Text className="text-white text-center font-semibold">
-                  Registrar
+                  {t("special.submit")}
                 </Text>
               </TouchableOpacity>
             </View>

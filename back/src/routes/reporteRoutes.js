@@ -1,6 +1,31 @@
 const express = require('express');
 const router = express.Router();
 const reporteController = require('../controllers/reporteController');
+const resumenController = require('../controllers/resumenController');
+const inicioController = require('../controllers/inicioController');
+
+/**
+ * GET /api/reportes/resumen
+ * Resumen semanal o mensual de operaciones, comparado con el período anterior
+ * Query params:
+ *   - periodo: semana | mes (opcional, default: semana)
+ *   - fecha: YYYY-MM-DD, cualquier día del período a ver (opcional, default: hoy)
+ */
+router.get('/resumen', resumenController.getResumen);
+
+/**
+ * GET /api/reportes/inicio
+ * Datos de la pantalla de Inicio: ventas de hoy/semana/mes, pedidos por atender,
+ * stock bajo, últimas facturas y deuda de clientes.
+ */
+router.get('/inicio', inicioController.getInicio);
+
+/**
+ * GET /api/reportes/alertas
+ * Conteos livianos (pedidos pendientes, stock bajo) que la app consulta cada minuto
+ * para disparar notificaciones.
+ */
+router.get('/alertas', inicioController.getAlertas);
 
 /**
  * RUTAS DE REPORTES - PUMAX

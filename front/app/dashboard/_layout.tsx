@@ -4,12 +4,20 @@ import { Slot, Stack, router, useSegments } from "expo-router";
 import { Menu as MenuIcon, X } from "lucide-react-native";
 import Menu from "../../components/Menu";
 import { useAuth } from "../../hooks/useAuth";
+import { useAlertWatcher } from "../../hooks/useAlertWatcher";
+import { useTheme } from "../../context/SettingsContext";
+import { useI18n } from "../../i18n";
 
 export default function DashboardLayout() {
 
 
   const segments = useSegments();
   const { isAuthenticated, isLoading } = useAuth();
+  const theme = useTheme();
+  const { t } = useI18n();
+
+  // Avisos de pedidos nuevos y stock bajo (solo actúa si la persona los activó en Configuración)
+  useAlertWatcher();
   const { width } = useWindowDimensions();
   const [menuVisible, setMenuVisible] = useState(false);
 
@@ -36,8 +44,8 @@ export default function DashboardLayout() {
   if (isLoading) {
     return (
       <View className="flex-1 items-center justify-center bg-slate-950">
-        <ActivityIndicator size="large" color="#45bd66" />
-        <Text className="text-white mt-4">Verificando sesión...</Text>
+        <ActivityIndicator size="large" color={theme.accent} />
+        <Text className="text-ink mt-4">{t("session.verifying")}</Text>
       </View>
     );
   }
@@ -61,7 +69,7 @@ export default function DashboardLayout() {
           className="absolute top-4 left-4 z-50 bg-slate-800 p-3 rounded-lg"
           style={{ elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 }}
         >
-          <MenuIcon color="#45bd66" size={24} />
+          <MenuIcon color={theme.accent} size={24} />
         </TouchableOpacity>
       )}
 
@@ -80,7 +88,7 @@ export default function DashboardLayout() {
                 onPress={() => setMenuVisible(false)}
                 className="absolute top-4 right-4 z-50 bg-slate-900 p-2 rounded-lg"
               >
-                <X color="#45bd66" size={24} />
+                <X color={theme.accent} size={24} />
               </TouchableOpacity>
               <Menu />
             </View>
@@ -95,7 +103,7 @@ export default function DashboardLayout() {
         </Modal>
       )}
 
-      <View className="flex-1 bg-white">
+      <View className="flex-1 bg-slate-900">
         <Slot />
       </View>
     </View>

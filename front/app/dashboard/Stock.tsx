@@ -11,26 +11,30 @@ import SalesPanel from "../../components/stock/SalesPanel";
 import PurchasesPanel from "../../components/stock/PurchasesPanel";
 import AdjustmentsPanel from "../../components/stock/AdjustmentsPanel";
 import { colors } from "../../constants/theme";
+import { useI18n } from "../../i18n";
+import { useTheme } from "../../context/SettingsContext";
 
 type TabKey = "ventas" | "compras" | "otros";
 
-const TABS: { key: TabKey; label: string; hint: string; icon: LucideIcon }[] = [
-  { key: "ventas", label: "Ventas", hint: "Salidas de mercadería por ventas", icon: ArrowUpRight },
-  { key: "compras", label: "Compras", hint: "Entradas por ingresos de proveedores", icon: ArrowDownLeft },
-  { key: "otros", label: "Otros", hint: "Ajustes y movimientos especiales", icon: SlidersHorizontal },
+const TABS: { key: TabKey; labelKey: string; hintKey: string; icon: LucideIcon }[] = [
+  { key: "ventas", labelKey: "stock.tab.sales", hintKey: "stock.hint.sales", icon: ArrowUpRight },
+  { key: "compras", labelKey: "stock.tab.purchases", hintKey: "stock.hint.purchases", icon: ArrowDownLeft },
+  { key: "otros", labelKey: "stock.tab.other", hintKey: "stock.hint.other", icon: SlidersHorizontal },
 ];
 
 const isTabKey = (value: unknown): value is TabKey =>
-  TABS.some((t) => t.key === value);
+  TABS.some((tab) => tab.key === value);
 
 export default function StockScreen() {
+  const { t } = useI18n();
+  const theme = useTheme();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
   // La pestaña vive en la dirección (?tab=compras): se puede enlazar y el botón "atrás" funciona
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const active: TabKey = isTabKey(tab) ? tab : "ventas";
-  const current = TABS.find((t) => t.key === active)!;
+  const current = TABS.find((tab) => tab.key === active)!;
 
   return (
     <View className="flex-1 bg-slate-900">
@@ -49,15 +53,15 @@ export default function StockScreen() {
             <ArrowLeftRight color={colors.wineLight} size={22} />
           </View>
           <View className="flex-1">
-            <Text className="text-2xl font-bold text-white">Movimiento de stock</Text>
-            <Text className="text-slate-400 text-sm">{current.hint}</Text>
+            <Text className="text-2xl font-bold text-ink">{t("stock.title")}</Text>
+            <Text className="text-slate-400 text-sm">{t(current.hintKey)}</Text>
           </View>
         </View>
 
         {/* Pestañas */}
         <View className="px-4 mb-2">
           <View className="flex-row bg-slate-800 border border-slate-700 rounded-2xl p-1">
-            {TABS.map(({ key, label, icon: Icon }) => {
+            {TABS.map(({ key, labelKey, icon: Icon }) => {
               const selected = key === active;
               return (
                 <TouchableOpacity
@@ -67,11 +71,11 @@ export default function StockScreen() {
                     selected ? "bg-brand-500" : ""
                   }`}
                 >
-                  <Icon color={selected ? "#fff" : colors.muted} size={18} />
+                  <Icon color={selected ? "#fff" : theme.muted} size={18} />
                   <Text
                     className={`ml-2 font-semibold ${selected ? "text-white" : "text-slate-300"}`}
                   >
-                    {label}
+                    {t(labelKey)}
                   </Text>
                 </TouchableOpacity>
               );

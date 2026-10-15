@@ -3,8 +3,12 @@ import { Text, View, ScrollView, TouchableOpacity, ActivityIndicator, TextInput 
 import { Plus, Search, TrendingUp, TrendingDown, AlertCircle } from "lucide-react-native";
 import SpecialStockModal from "../modals/NewSpecialStockModal";
 import { useMovimientos } from "../../hooks/useMovimientos";
+import { useI18n } from "../../i18n";
+import { useTheme } from "../../context/SettingsContext";
 
 export default function AdjustmentsPanel() {
+  const { t, locale } = useI18n();
+  const theme = useTheme();
   const [SpecialStockModalOpen, setSpecialStockModalOpen] = useState(false);
   const [filterTipo, setFilterTipo] = useState<string>("");
   const [search, setSearch] = useState("");
@@ -13,7 +17,7 @@ export default function AdjustmentsPanel() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('es-AR');
+    return date.toLocaleDateString(locale);
   };
 
   // Filtrar movimientos localmente
@@ -54,6 +58,12 @@ export default function AdjustmentsPanel() {
     }
   };
 
+  const tipoLabel = (tipo: string) => {
+    const key = `stock.movType.${tipo}`;
+    const label = t(key);
+    return label === key ? tipo : label;
+  };
+
   const handleModalClose = () => {
     setSpecialStockModalOpen(false);
     // Refrescar la lista después de crear un movimiento
@@ -64,7 +74,7 @@ export default function AdjustmentsPanel() {
     return (
       <View className="flex-1 bg-slate-900 items-center justify-center">
         <ActivityIndicator size="large" color="#45bd66" />
-        <Text className="text-white mt-4">Cargando movimientos...</Text>
+        <Text className="text-ink mt-4">{t("stock.adj.loading")}</Text>
       </View>
     );
   }
@@ -72,12 +82,12 @@ export default function AdjustmentsPanel() {
   if (error) {
     return (
       <View className="flex-1 bg-slate-900 items-center justify-center p-4">
-        <Text className="text-red-500 text-lg mb-4">Error: {error}</Text>
+        <Text className="text-red-500 text-lg mb-4">{t("stock.errorPrefix", { error })}</Text>
         <TouchableOpacity
           onPress={() => refetch()}
           className="bg-brand-500 px-6 py-3 rounded-lg"
         >
-          <Text className="text-white font-semibold">Reintentar</Text>
+          <Text className="text-white font-semibold">{t("common.retry")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -87,19 +97,19 @@ export default function AdjustmentsPanel() {
     <View className="flex-1 bg-slate-900">
       {/* Header */}
       <View className="px-4 pt-2 pb-4">
-        <Text className="text-gray-400">Ajustes y movimientos especiales de stock</Text>
+        <Text className="text-gray-400">{t("stock.adj.subtitle")}</Text>
       </View>
 
       {/* Búsqueda */}
       <View className="px-4 mb-3">
         <View className="flex-row items-center bg-slate-800 border border-slate-700 rounded-xl px-3 py-2">
-          <Search color="#9CA3AF" size={20} />
+          <Search color={theme.muted} size={20} />
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Buscar por producto, motivo o ID..."
-            placeholderTextColor="#9CA3AF"
-            className="flex-1 ml-2 text-white"
+            placeholder={t("stock.adj.searchPlaceholder")}
+            placeholderTextColor={theme.placeholder}
+            className="flex-1 ml-2 text-ink"
           />
         </View>
       </View>
@@ -111,25 +121,25 @@ export default function AdjustmentsPanel() {
             onPress={() => setFilterTipo("")}
             className={`px-4 py-2 rounded-full mr-2 ${filterTipo === "" ? "bg-brand-700" : "bg-slate-800"}`}
           >
-            <Text className="text-white">Todos</Text>
+            <Text className="text-white">{t("stock.all")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setFilterTipo("ENTRADA")}
             className={`px-4 py-2 rounded-full mr-2 ${filterTipo === "ENTRADA" ? "bg-brand-500" : "bg-slate-800"}`}
           >
-            <Text className="text-white">Entrada</Text>
+            <Text className="text-white">{t("stock.move.in")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setFilterTipo("SALIDA")}
             className={`px-4 py-2 rounded-full mr-2 ${filterTipo === "SALIDA" ? "bg-red-600" : "bg-slate-800"}`}
           >
-            <Text className="text-white">Salida</Text>
+            <Text className="text-white">{t("stock.move.out")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setFilterTipo("AJUSTE")}
             className={`px-4 py-2 rounded-full ${filterTipo === "AJUSTE" ? "bg-yellow-600" : "bg-slate-800"}`}
           >
-            <Text className="text-white">Ajuste</Text>
+            <Text className="text-white">{t("stock.move.adjust")}</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -138,7 +148,7 @@ export default function AdjustmentsPanel() {
       <ScrollView className="flex-1 px-4">
         {filteredMovimientos.length === 0 ? (
           <View className="items-center justify-center py-12">
-            <Text className="text-gray-400 text-lg">No se encontraron movimientos</Text>
+            <Text className="text-gray-400 text-lg">{t("stock.adj.notFound")}</Text>
           </View>
         ) : (
           filteredMovimientos.map((movimiento) => (
@@ -147,23 +157,23 @@ export default function AdjustmentsPanel() {
                 <View className="flex-1">
                   <View className="flex-row items-center mb-1">
                     {getTipoIcon(movimiento.tipo_movimiento)}
-                    <Text className="text-white font-bold text-lg ml-2">
+                    <Text className="text-ink font-bold text-lg ml-2">
                       {movimiento.producto_nombre}
                     </Text>
                   </View>
                   <Text className="text-gray-400 text-sm">
-                    ID: {movimiento.id} • {formatDate(movimiento.fecha)}
+                    {t("stock.adj.idLine", { id: movimiento.id, date: formatDate(movimiento.fecha) })}
                   </Text>
                 </View>
                 <View className={`px-3 py-1 rounded-full ${getTipoColor(movimiento.tipo_movimiento)}`}>
-                  <Text className="text-white text-xs font-semibold">
-                    {movimiento.tipo_movimiento}
+                  <Text className="text-ink text-xs font-semibold">
+                    {tipoLabel(movimiento.tipo_movimiento)}
                   </Text>
                 </View>
               </View>
 
               <View className="flex-row justify-between items-center mb-2">
-                <Text className="text-gray-300">Cantidad:</Text>
+                <Text className="text-gray-300">{t("stock.adj.quantity")}</Text>
                 <Text className={`font-bold text-lg ${
                   movimiento.tipo_movimiento === 'ENTRADA' ? 'text-brand-400' :
                   movimiento.tipo_movimiento === 'SALIDA' ? 'text-red-500' :
@@ -176,26 +186,26 @@ export default function AdjustmentsPanel() {
               </View>
 
               <View className="flex-row justify-between items-center mb-2 pb-2 border-b border-slate-700">
-                <Text className="text-gray-300">Stock anterior:</Text>
-                <Text className="text-white font-semibold">{movimiento.stock_anterior}</Text>
+                <Text className="text-gray-300">{t("stock.adj.prevStock")}</Text>
+                <Text className="text-ink font-semibold">{movimiento.stock_anterior}</Text>
               </View>
 
               <View className="flex-row justify-between items-center mb-3">
-                <Text className="text-gray-300">Stock nuevo:</Text>
-                <Text className="text-white font-bold text-lg">{movimiento.stock_nuevo}</Text>
+                <Text className="text-gray-300">{t("stock.adj.newStock")}</Text>
+                <Text className="text-ink font-bold text-lg">{movimiento.stock_nuevo}</Text>
               </View>
 
               {movimiento.motivo && (
                 <View className="bg-slate-700 rounded-lg p-2">
-                  <Text className="text-gray-400 text-xs mb-1">Motivo:</Text>
-                  <Text className="text-white text-sm">{movimiento.motivo}</Text>
+                  <Text className="text-gray-400 text-xs mb-1">{t("stock.adj.reason")}</Text>
+                  <Text className="text-ink text-sm">{movimiento.motivo}</Text>
                 </View>
               )}
 
               {movimiento.usuario && (
                 <View className="mt-2">
                   <Text className="text-gray-500 text-xs">
-                    Registrado por: {movimiento.usuario}
+                    {t("stock.adj.recordedBy", { user: movimiento.usuario })}
                   </Text>
                 </View>
               )}
@@ -207,8 +217,8 @@ export default function AdjustmentsPanel() {
       {/* Footer con totales */}
       <View className="bg-slate-800 px-4 py-3 border-t border-slate-700">
         <View className="flex-row justify-between items-center">
-          <Text className="text-gray-300">Total de movimientos:</Text>
-          <Text className="text-white font-bold text-lg">{filteredMovimientos.length}</Text>
+          <Text className="text-gray-300">{t("stock.adj.totalMovements")}</Text>
+          <Text className="text-ink font-bold text-lg">{filteredMovimientos.length}</Text>
         </View>
       </View>
 

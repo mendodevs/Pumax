@@ -1,185 +1,298 @@
-import React, { useState, useEffect } from "react";
-import { ScrollView, View, Text, Switch, TouchableOpacity, ActivityIndicator } from "react-native";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useState, type ReactNode } from "react";
+import { View, Text, ScrollView, Switch, TouchableOpacity, Platform, useWindowDimensions } from "react-native";
+import {
+  Bell,
+  BellRing,
+  Check,
+  Info,
+  Languages,
+  Monitor,
+  Moon,
+  Palette,
+  Settings as SettingsIcon,
+  Sun,
+} from "lucide-react-native";
+import { useSettings, useTheme, type ThemePref } from "../../context/SettingsContext";
+import { LANGUAGES, translate } from "../../i18n/core";
+import { useI18n } from "../../i18n";
+import { useNotice } from "../../hooks/useNotice";
+import { resetAlertBaseline } from "../../hooks/useAlertWatcher";
+import NoticeBanner from "../../components/NoticeBanner";
+import { getPermission, requestPermission, showNotification, type PermissionState } from "../../services/notify";
+import { colors } from "../../constants/theme";
+
+/* ---------- Piezas ---------- */
+
+function Card({
+  icon: Icon,
+  title,
+  desc,
+  children,
+}: {
+  icon: typeof Sun;
+  title: string;
+  desc?: string;
+  children: ReactNode;
+}) {
+  return (
+    <View className="bg-slate-800 border border-slate-700 rounded-2xl p-4 mb-4">
+      <View className="flex-row items-center mb-1">
+        <View className="w-9 h-9 rounded-lg bg-brand-700 items-center justify-center mr-3">
+          <Icon color={colors.wineLight} size={18} />
+        </View>
+        <Text className="text-ink font-bold text-base flex-1">{title}</Text>
+      </View>
+      {desc ? <Text className="text-slate-400 text-sm mb-3 ml-12">{desc}</Text> : <View className="mb-3" />}
+      {children}
+    </View>
+  );
+}
+
+function Row({
+  title,
+  desc,
+  value,
+  onChange,
+  disabled,
+  first,
+}: {
+  title: string;
+  desc?: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+  first?: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <View
+      className={`flex-row items-center py-3 ${first ? "" : "border-t border-slate-700"}`}
+      style={{ opacity: disabled ? 0.45 : 1 }}
+    >
+      <View className="flex-1 pr-3">
+        <Text className="text-ink text-sm font-semibold">{title}</Text>
+        {desc ? <Text className="text-slate-400 text-xs mt-0.5">{desc}</Text> : null}
+      </View>
+      <Switch
+        value={value}
+        disabled={disabled}
+        onValueChange={onChange}
+        trackColor={{ false: theme.isDark ? "#34433b" : "#cbd5cf", true: theme.accent }}
+        thumbColor="#ffffff"
+      />
+    </View>
+  );
+}
+
+const THEMES: { key: ThemePref; icon: typeof Sun; label: string }[] = [
+  { key: "light", icon: Sun, label: "settings.theme.light" },
+  { key: "dark", icon: Moon, label: "settings.theme.dark" },
+  { key: "system", icon: Monitor, label: "settings.theme.system" },
+];
+
+const PERM_STYLE: Record<PermissionState, { chip: string; text: string }> = {
+  granted: { chip: "bg-brand-500/15", text: "text-brand-400" },
+  default: { chip: "bg-slate-700", text: "text-slate-300" },
+  denied: { chip: "bg-red-500/15", text: "text-red-400" },
+  unsupported: { chip: "bg-amber-500/15", text: "text-amber-400" },
+};
+
+/* ---------- Pantalla ---------- */
 
 export default function Settings() {
-  const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(true); // La app ya está en dark mode
-  const [languageOpen, setLanguageOpen] = useState(false);
-  const [language, setLanguage] = useState("Español");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
+  const { t } = useI18n();
+  const theme = useTheme();
+  const { settings, setTheme, setLanguage, setNotifications } = useSettings();
+  const { notice, showNotice } = useNotice();
+  const [perm, setPerm] = useState<PermissionState>("default");
 
-  // Cargar preferencias guardadas
+  const n = settings.notifications;
+
   useEffect(() => {
-    loadSettings();
+    getPermission().then(setPerm);
   }, []);
 
-  const loadSettings = async () => {
-    try {
-      setLoading(true);
-      const savedNotifications = await AsyncStorage.getItem('settings_notifications');
-      const savedDarkMode = await AsyncStorage.getItem('settings_darkMode');
-      const savedLanguage = await AsyncStorage.getItem('settings_language');
-
-      if (savedNotifications !== null) {
-        setNotifications(savedNotifications === 'true');
-      }
-      if (savedDarkMode !== null) {
-        setDarkMode(savedDarkMode === 'true');
-      }
-      if (savedLanguage !== null) {
-        setLanguage(savedLanguage);
-      }
-    } catch (error) {
-      console.error('Error loading settings:', error);
-    } finally {
-      setLoading(false);
+  // El permiso se pide directo desde el toque (los navegadores lo exigen)
+  const toggleMaster = async (on: boolean) => {
+    if (!on) {
+      setNotifications({ enabled: false });
+      showNotice("info", t("settings.notif.off"));
+      return;
+    }
+    const result = await requestPermission();
+    setPerm(result);
+    if (result === "granted") {
+      await resetAlertBaseline(); // solo avisa de lo que pase desde ahora
+      setNotifications({ enabled: true });
+      showNotice("success", t("settings.notif.on"));
+    } else {
+      setNotifications({ enabled: false });
+      showNotice("error", t(helpKey(result)));
     }
   };
 
-  const handleSaveSettings = async () => {
-    try {
-      setSaving(true);
-      await AsyncStorage.setItem('settings_notifications', notifications.toString());
-      await AsyncStorage.setItem('settings_darkMode', darkMode.toString());
-      await AsyncStorage.setItem('settings_language', language);
-
-      alert("Configuración guardada exitosamente ✅");
-    } catch (error) {
-      console.error('Error saving settings:', error);
-      alert("Error al guardar configuración");
-    } finally {
-      setSaving(false);
+  const sendTest = async () => {
+    let state = perm;
+    if (state !== "granted") {
+      state = await requestPermission();
+      setPerm(state);
     }
+    if (state !== "granted") {
+      showNotice("error", t(helpKey(state)));
+      return;
+    }
+    await showNotification(translate("notif.test.title"), translate("notif.test.body"), {
+      tag: "test",
+      url: "/dashboard/Settings",
+    });
+    showNotice("success", t("settings.notif.testSent"));
   };
 
-  if (loading) {
-    return (
-      <View className="flex-1 bg-slate-900 items-center justify-center">
-        <ActivityIndicator size="large" color="#45bd66" />
-        <Text className="text-white mt-4">Cargando configuración...</Text>
-      </View>
-    );
-  }
+  const helpKey = (state: PermissionState) =>
+    state === "unsupported"
+      ? "settings.notif.unsupportedHelp"
+      : Platform.OS === "web"
+      ? "settings.notif.deniedHelpWeb"
+      : "settings.notif.deniedHelpApp";
+
+  const showHelp = perm === "denied" || perm === "unsupported";
 
   return (
-    <ScrollView className="flex-1 bg-slate-900 p-6">
-      {/* Título */}
-      <Text className="text-2xl font-bold mb-2 text-white">Configuración</Text>
-      <Text className="text-gray-400 mb-6">Personaliza tu experiencia</Text>
-
-      {/* Sección de Preferencias */}
-      <View className="bg-slate-800 rounded-2xl p-4 shadow mb-4">
-        <Text className="text-lg font-semibold mb-4 text-white">
-          Preferencias de la Aplicación
-        </Text>
-
-        {/* Notificaciones */}
-        <View className="flex-row justify-between items-center py-3 border-b border-slate-700">
-          <View className="flex-1">
-            <Text className="text-base text-white mb-1">Notificaciones</Text>
-            <Text className="text-gray-400 text-sm">
-              Recibe alertas sobre pedidos y stock
-            </Text>
-          </View>
-          <Switch
-            value={notifications}
-            onValueChange={setNotifications}
-            trackColor={{ false: "#475569", true: "#45bd66" }}
-            thumbColor={notifications ? "#158a33" : "#94a3b8"}
-          />
+    <ScrollView
+      className="flex-1 bg-slate-900"
+      contentContainerStyle={{
+        width: "100%",
+        maxWidth: 720,
+        alignSelf: "center",
+        paddingHorizontal: 16,
+        paddingTop: isMobile ? 72 : 24,
+        paddingBottom: 32,
+      }}
+    >
+      <View className="flex-row items-center mb-5">
+        <View className="w-11 h-11 rounded-xl bg-brand-700 items-center justify-center mr-3">
+          <SettingsIcon color={colors.wineLight} size={22} />
         </View>
-
-        {/* Modo oscuro */}
-        <View className="flex-row justify-between items-center py-3">
-          <View className="flex-1">
-            <Text className="text-base text-white mb-1">Modo oscuro</Text>
-            <Text className="text-gray-400 text-sm">
-              {darkMode ? "Activado (recomendado)" : "Desactivado"}
-            </Text>
-          </View>
-          <Switch
-            value={darkMode}
-            onValueChange={setDarkMode}
-            trackColor={{ false: "#475569", true: "#45bd66" }}
-            thumbColor={darkMode ? "#158a33" : "#94a3b8"}
-          />
+        <View className="flex-1">
+          <Text className="text-2xl font-bold text-ink">{t("settings.title")}</Text>
+          <Text className="text-slate-400 text-sm">{t("settings.subtitle")}</Text>
         </View>
       </View>
 
-      {/* Sección de Idioma */}
-      <View className="bg-slate-800 rounded-2xl p-4 shadow mb-4">
-        <Text className="text-lg font-semibold mb-3 text-white">Idioma</Text>
+      <NoticeBanner notice={notice} />
 
-        <TouchableOpacity
-          className="flex-row justify-between items-center py-3 bg-slate-700 rounded-xl px-4"
-          onPress={() => setLanguageOpen(!languageOpen)}
-        >
-          <Text className="text-base text-white">{language}</Text>
-          <Text className="text-white text-xl">{languageOpen ? "▲" : "▼"}</Text>
-        </TouchableOpacity>
-
-        {languageOpen && (
-          <View className="mt-2 bg-slate-700 rounded-xl overflow-hidden">
-            {["Español", "Inglés"].map((lang, index) => (
+      {/* Apariencia */}
+      <Card icon={Palette} title={t("settings.appearance")} desc={t("settings.appearance.desc")}>
+        <View className="flex-row -mx-1">
+          {THEMES.map(({ key, icon: Icon, label }) => {
+            const selected = settings.theme === key;
+            return (
               <TouchableOpacity
-                key={lang}
-                className={`py-3 px-4 ${index === 0 ? 'border-b border-slate-600' : ''}`}
-                onPress={() => {
-                  setLanguage(lang);
-                  setLanguageOpen(false);
-                }}
+                key={key}
+                activeOpacity={0.8}
+                onPress={() => setTheme(key)}
+                className="flex-1 px-1"
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
               >
-                <View className="flex-row justify-between items-center">
-                  <Text className="text-white">{lang}</Text>
-                  {language === lang && (
-                    <Text className="text-brand-400">✓</Text>
-                  )}
+                <View
+                  className={`items-center rounded-xl border-2 py-4 ${
+                    selected ? "border-brand-500 bg-brand-500/10" : "border-slate-700 bg-slate-900"
+                  }`}
+                >
+                  <Icon color={selected ? theme.accent : theme.muted} size={22} />
+                  <Text className={`text-sm font-semibold mt-2 ${selected ? "text-ink" : "text-slate-300"}`}>
+                    {t(label)}
+                  </Text>
+                  <View className="h-4 mt-1 items-center justify-center">
+                    {selected ? <Check color={theme.accent} size={14} /> : null}
+                  </View>
                 </View>
               </TouchableOpacity>
-            ))}
-          </View>
+            );
+          })}
+        </View>
+        {settings.theme === "system" && (
+          <Text className="text-slate-400 text-xs mt-3">{t("settings.theme.systemHint")}</Text>
         )}
-      </View>
+      </Card>
 
-      {/* Información de la app */}
-      <View className="bg-slate-800 rounded-2xl p-4 shadow mb-4">
-        <Text className="text-lg font-semibold mb-3 text-white">Acerca de</Text>
-        <View className="space-y-2">
-          <View className="flex-row justify-between py-2">
-            <Text className="text-gray-400">Versión</Text>
-            <Text className="text-white">1.0.0</Text>
-          </View>
-          <View className="flex-row justify-between py-2 border-t border-slate-700">
-            <Text className="text-gray-400">Plataforma</Text>
-            <Text className="text-white">Expo / React Native</Text>
-          </View>
-          <View className="flex-row justify-between py-2 border-t border-slate-700">
-            <Text className="text-gray-400">Desarrollado por</Text>
-            <Text className="text-white">MendoDevs</Text>
-          </View>
-           <View className="flex-row justify-between py-2 border-t border-slate-700">
-            <Text className="text-gray-400">Soporte técnico</Text>
-            <Text className="text-white">mendodevs.soft@gmail.com</Text>
+      {/* Idioma */}
+      <Card icon={Languages} title={t("settings.language")} desc={t("settings.language.desc")}>
+        {LANGUAGES.map((l, i) => {
+          const selected = settings.language === l.code;
+          return (
+            <TouchableOpacity
+              key={l.code}
+              activeOpacity={0.8}
+              onPress={() => setLanguage(l.code)}
+              className={`flex-row items-center py-3 ${i > 0 ? "border-t border-slate-700" : ""}`}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+            >
+              <View className="w-9 h-9 rounded-lg bg-slate-700 items-center justify-center mr-3">
+                <Text className="text-ink text-xs font-bold">{l.short}</Text>
+              </View>
+              <Text className="text-ink text-sm font-semibold flex-1">{l.label}</Text>
+              {selected ? <Check color={theme.accent} size={18} /> : null}
+            </TouchableOpacity>
+          );
+        })}
+      </Card>
+
+      {/* Notificaciones */}
+      <Card icon={Bell} title={t("settings.notif")} desc={t("settings.notif.desc")}>
+        <View className="flex-row items-center mb-2">
+          <View className={`px-2.5 py-1 rounded-md ${PERM_STYLE[perm].chip}`}>
+            <Text className={`text-xs font-semibold ${PERM_STYLE[perm].text}`}>
+              {t(`settings.notif.status.${perm}`)}
+            </Text>
           </View>
         </View>
-      </View>
+        {showHelp && <Text className="text-slate-400 text-xs mb-1">{t(helpKey(perm))}</Text>}
 
-      {/* Botón Guardar */}
-      <TouchableOpacity
-        onPress={handleSaveSettings}
-        disabled={saving}
-        className="bg-brand-500 rounded-xl p-4 mt-2 shadow"
-      >
-        {saving ? (
-          <ActivityIndicator size="small" color="white" />
-        ) : (
-          <Text className="text-white text-center text-base font-semibold">
-            Guardar cambios
-          </Text>
-        )}
-      </TouchableOpacity>
+        <Row first title={t("settings.notif.master")} value={n.enabled} onChange={toggleMaster} />
+        <Row
+          title={t("settings.notif.orders")}
+          desc={t("settings.notif.ordersDesc")}
+          value={n.orders}
+          disabled={!n.enabled}
+          onChange={(v) => setNotifications({ orders: v })}
+        />
+        <Row
+          title={t("settings.notif.stock")}
+          desc={t("settings.notif.stockDesc")}
+          value={n.stock}
+          disabled={!n.enabled}
+          onChange={(v) => setNotifications({ stock: v })}
+        />
+
+        <TouchableOpacity
+          onPress={sendTest}
+          activeOpacity={0.85}
+          className="flex-row items-center justify-center rounded-xl border border-slate-600 py-3 mt-3"
+        >
+          <BellRing color={theme.accent} size={18} />
+          <Text className="text-ink text-sm font-semibold ml-2">{t("settings.notif.test")}</Text>
+        </TouchableOpacity>
+        <Text className="text-slate-500 text-xs mt-3">{t("settings.notif.scope")}</Text>
+      </Card>
+
+      {/* Acerca de */}
+      <Card icon={Info} title={t("settings.about")}>
+        {[
+          [t("settings.version"), "1.0.0"],
+          [t("settings.platform"), "Expo / React Native"],
+          [t("settings.developedBy"), "MendoDevs"],
+        ].map(([label, value], i) => (
+          <View key={label} className={`flex-row justify-between py-2.5 ${i > 0 ? "border-t border-slate-700" : ""}`}>
+            <Text className="text-slate-400 text-sm">{label}</Text>
+            <Text className="text-ink text-sm font-medium">{value}</Text>
+          </View>
+        ))}
+      </Card>
     </ScrollView>
   );
 }

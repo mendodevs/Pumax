@@ -46,36 +46,36 @@ export default function NewReport() {
       contentContainerStyle={{ flexGrow: 1 }}
       className="bg-slate-900 p-5"
     >
-      <Text className="text-xl font-bold text-center text-white mb-6">
+      <Text className="text-xl font-bold text-center text-ink mb-6">
         Añadir Reporte
       </Text>
-      <Text className="text-base text-white mb-2">Usuario</Text>
+      <Text className="text-base text-ink mb-2">Usuario</Text>
       <TextInput
-        className="bg-slate-700 border border-gray-300 rounded-xl p-3 mb-4 text-base text-white"
+        className="bg-slate-700 border border-gray-300 rounded-xl p-3 mb-4 text-base text-ink"
         placeholder="Acá debería seleccionar usuario"
       />
-      <Text className="text-base text-white mb-2">Título</Text>
+      <Text className="text-base text-ink mb-2">Título</Text>
       <TextInput
-        className="bg-slate-700 border border-gray-300 rounded-xl p-3 mb-4 text-base text-white"
+        className="bg-slate-700 border border-gray-300 rounded-xl p-3 mb-4 text-base text-ink"
         placeholder="Ej: Reporte semanal"
         value={title}
         onChangeText={setTitle}
       />
 
-      <Text className="text-base text-white mb-2">Detalle</Text>
+      <Text className="text-base text-ink mb-2">Detalle</Text>
       <TextInput
-        className="bg-slate-700 border border-gray-300 rounded-xl p-3 mb-4 text-base h-32 text-top text-white"
+        className="bg-slate-700 border border-gray-300 rounded-xl p-3 mb-4 text-base h-32 text-top text-ink"
         placeholder="Describe el reporte..."
         value={description}
         onChangeText={setDescription}
         multiline
       />
-      <Text className="text-base text-white mb-2">Fecha</Text>
+      <Text className="text-base text-ink mb-2">Fecha</Text>
       {Platform.OS === "web" ? (
         // 🌐 Web: usar input HTML nativo
         <input
           type="date"
-          className="bg-slate-700 border border-gray-300 rounded-xl p-3 mb-6 text-base text-white"
+          className="bg-slate-700 border border-gray-300 rounded-xl p-3 mb-6 text-base text-ink"
           value={date.toISOString().split("T")[0]}
           onChange={(e) => setDate(new Date(e.target.value))}
         />

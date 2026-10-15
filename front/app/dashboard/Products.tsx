@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import {
   AlertTriangle,
-  Check,
   Edit,
   Lamp,
   Plus,
@@ -24,11 +23,13 @@ import { useNotice } from "../../hooks/useNotice";
 import { deleteProduct } from "../../services/products.service";
 import EditProductModal from "../../components/modals/EditProductModal";
 import NewProductModal from "../../components/modals/NewProductModal";
-import ConfirmDialog from "../../components/modals/ConfirmDialog";
-import NoticeBanner from "../../components/modals/NoticeBanner";
+import ConfirmDialog from "../../components/ConfirmDialog";
+import NoticeBanner from "../../components/NoticeBanner";
 import { Product } from "../../types/products.types";
 import { colors } from "../../constants/theme";
 import { money } from "../../utils/format";
+import { useI18n } from "../../i18n";
+import { useTheme } from "../../context/SettingsContext";
 
 const DEFAULT_MIN_STOCK = 5;
 
@@ -46,12 +47,13 @@ const STOCK_STYLES: Record<StockLevel, { box: string; text: string }> = {
 };
 
 function StockBadge({ product }: { product: Product }) {
+  const { t } = useI18n();
   const level = stockLevel(product);
   const s = STOCK_STYLES[level];
   return (
     <View className={`${s.box} rounded-full px-3 py-1 self-start`}>
       <Text className={`${s.text} text-xs font-bold`}>
-        {level === "out" ? "Sin stock" : `${product.stock} u.`}
+        {level === "out" ? t("lists.products.outOfStock") : t("lists.products.units", { n: product.stock })}
       </Text>
     </View>
   );
@@ -117,6 +119,8 @@ function ActionButtons({
 }
 
 export default function ProductsScreen() {
+  const { t } = useI18n();
+  const theme = useTheme();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
@@ -176,10 +180,10 @@ export default function ProductsScreen() {
     setDeleting(true);
     try {
       await deleteProduct(productToDelete.id);
-      showNotice("success", `"${productToDelete.descripcion}" se eliminó correctamente`);
+      showNotice("success", t("lists.products.deleted", { name: productToDelete.descripcion }));
       refetch();
     } catch (err) {
-      showNotice("error", "No se pudo eliminar el producto");
+      showNotice("error", t("lists.products.deleteFailed"));
     } finally {
       setDeleting(false);
       setProductToDelete(null);
@@ -188,15 +192,15 @@ export default function ProductsScreen() {
 
   // ---------- Filas ----------
   const renderDesktopRow = ({ item }: { item: Product }) => (
-    <View className="flex-row items-center bg-slate-800 border border-slate-700 px-4 py-3 mb-2">
+    <View className="flex-row items-center bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 mb-2">
       <Text className="text-slate-400 text-xs w-24" numberOfLines={1}>
         {item.codigo}
       </Text>
-      <Text className="text-white font-semibold flex-1 pr-2" numberOfLines={1}>
+      <Text className="text-ink font-semibold flex-1 pr-2" numberOfLines={1}>
         {item.descripcion}
       </Text>
       <Text className="text-slate-300 flex-1 pr-2" numberOfLines={1}>
-        {item.categoria?.nombre || "Sin categoría"}
+        {item.categoria?.nombre || t("lists.products.noCategory")}
       </Text>
       <View className="w-24">
         <StockBadge product={item} />
@@ -211,12 +215,12 @@ export default function ProductsScreen() {
   );
 
   const renderMobileCard = ({ item }: { item: Product }) => (
-    <View className="bg-slate-800 border border-slate-700  p-4 mb-3">
+    <View className="bg-slate-800 border border-slate-700 rounded-2xl p-4 mb-3">
       <View className="flex-row items-start justify-between">
         <View className="flex-1 pr-3">
-          <Text className="text-white font-semibold text-base">{item.descripcion}</Text>
+          <Text className="text-ink font-semibold text-base">{item.descripcion}</Text>
           <Text className="text-slate-400 text-xs mt-1">
-            {item.codigo} · {item.categoria?.nombre || "Sin categoría"}
+            {item.codigo} · {item.categoria?.nombre || t("lists.products.noCategory")}
           </Text>
         </View>
         <StockBadge product={item} />
@@ -235,7 +239,7 @@ export default function ProductsScreen() {
     return (
       <View className="flex-1 bg-slate-900 items-center justify-center">
         <ActivityIndicator size="large" color={colors.brandLight} />
-        <Text className="text-white mt-4">Cargando productos...</Text>
+        <Text className="text-ink mt-4">{t("lists.products.loading")}</Text>
       </View>
     );
   }
@@ -244,12 +248,12 @@ export default function ProductsScreen() {
     return (
       <View className="flex-1 bg-slate-900 items-center justify-center px-4">
         <AlertTriangle color={colors.danger} size={48} />
-        <Text className="text-white text-lg mt-4 text-center">{error}</Text>
+        <Text className="text-ink text-lg mt-4 text-center">{error}</Text>
         <TouchableOpacity
           onPress={refetch}
           className="bg-brand-500 px-6 py-3 rounded-xl mt-4"
         >
-          <Text className="text-white font-semibold">Reintentar</Text>
+          <Text className="text-white font-semibold">{t("common.retry")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -262,19 +266,19 @@ export default function ProductsScreen() {
       <View className="flex-row items-center justify-between mb-5">
         <View className="flex-row items-center">
           <View className="w-11 h-11 rounded-xl bg-brand-700 items-center justify-center mr-3">
-          <Lamp color="#ae2151" size={22} />
+            <Lamp color={colors.wineLight} size={22} />
           </View>
           <View>
-            <Text className="text-2xl font-bold text-white">Productos</Text>
-            <Text className="text-slate-400 text-sm mb-2">Catálogo y stock</Text>
+            <Text className="text-2xl font-bold text-ink">{t("lists.products.title")}</Text>
+            <Text className="text-slate-400 text-sm">{t("lists.products.subtitle")}</Text>
           </View>
         </View>
         <TouchableOpacity
           onPress={() => setNewVisible(true)}
-          className="flex-row items-center bg-brand-500 active:bg-brand-700 px-4 py-3"
+          className="flex-row items-center bg-brand-500 active:bg-brand-700 rounded-xl px-4 py-3"
         >
           <Plus color="#fff" size={18} />
-          <Text className="text-white font-bold ml-1">{isMobile ? "Nuevo" : "Nuevo producto"}</Text>
+          <Text className="text-white font-bold ml-1">{isMobile ? t("lists.products.newShort") : t("lists.products.new")}</Text>
         </TouchableOpacity>
       </View>
 
@@ -282,20 +286,20 @@ export default function ProductsScreen() {
 
       {/* Resumen */}
       <View className="flex-row mb-4" style={{ gap: 12 }}>
-        <StatCard label="Productos" value={stats.total} />
-        <StatCard label="Stock bajo" value={stats.low} tone="text-amber-400" />
-        <StatCard label="Sin stock" value={stats.out} tone="text-red-400" />
+        <StatCard label={t("lists.products.statProducts")} value={stats.total} />
+        <StatCard label={t("lists.products.statLow")} value={stats.low} tone="text-amber-400" />
+        <StatCard label={t("lists.products.statOut")} value={stats.out} tone="text-red-400" />
       </View>
 
       {/* Búsqueda */}
-      <View className="flex-row items-center bg-slate-800 border border-slate-700  px-3 py-2 mb-3">
+      <View className="flex-row items-center bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 mb-3">
         <Search color={colors.muted} size={20} />
         <TextInput
-          placeholder="Buscar por nombre, código o categoría..."
-          placeholderTextColor="#94a3b8"
+          placeholder={t("lists.products.search")}
+          placeholderTextColor={theme.placeholder}
           value={search}
           onChangeText={setSearch}
-          className="flex-1 ml-2 text-white py-1"
+          className="flex-1 ml-2 text-ink py-1"
         />
         {search ? (
           <TouchableOpacity onPress={() => setSearch("")}>
@@ -307,7 +311,7 @@ export default function ProductsScreen() {
       {/* Filtros rápidos */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
         <Chip
-          label="Todas"
+          label={t("lists.products.chipAll")}
           active={!categoryFilter}
           onPress={() => setCategoryFilter(null)}
         />
@@ -320,7 +324,7 @@ export default function ProductsScreen() {
           />
         ))}
         <Chip
-          label="⚠ Stock bajo"
+          label={t("lists.products.chipLow")}
           active={onlyLowStock}
           onPress={() => setOnlyLowStock(!onlyLowStock)}
         />
@@ -329,15 +333,15 @@ export default function ProductsScreen() {
       {/* Cabecera de tabla (solo escritorio) */}
       {!isMobile && (
         <View className="flex-row items-center px-4 pb-2">
-          <Text className="text-slate-400 text-xs font-semibold uppercase w-24">Código</Text>
-          <Text className="text-slate-400 text-xs font-semibold uppercase flex-1">Producto</Text>
-          <Text className="text-slate-400 text-xs font-semibold uppercase flex-1">Categoría</Text>
-          <Text className="text-slate-400 text-xs font-semibold uppercase w-24">Stock</Text>
-          <Text className="text-slate-400 text-xs font-semibold uppercase w-28 text-center">
-            Precio
+          <Text className="text-slate-400 text-xs font-semibold uppercase w-24">{t("lists.products.colCode")}</Text>
+          <Text className="text-slate-400 text-xs font-semibold uppercase flex-1">{t("lists.products.colProduct")}</Text>
+          <Text className="text-slate-400 text-xs font-semibold uppercase flex-1">{t("lists.products.colCategory")}</Text>
+          <Text className="text-slate-400 text-xs font-semibold uppercase w-24">{t("lists.products.colStock")}</Text>
+          <Text className="text-slate-400 text-xs font-semibold uppercase w-28 text-right">
+            {t("lists.products.colPrice")}
           </Text>
-          <Text className="text-slate-400 text-xs font-semibold uppercase w-24 text-center">
-            Acciones
+          <Text className="text-slate-400 text-xs font-semibold uppercase w-24 text-right">
+            {t("lists.actions")}
           </Text>
         </View>
       )}
@@ -354,7 +358,7 @@ export default function ProductsScreen() {
         ListEmptyComponent={
           <View className="items-center py-12">
             <Lamp color={colors.muted} size={32} />
-            <Text className="text-slate-400 mt-3">No se encontraron productos.</Text>
+            <Text className="text-slate-400 mt-3">{t("lists.products.empty")}</Text>
           </View>
         }
         contentContainerStyle={{
@@ -373,7 +377,7 @@ export default function ProductsScreen() {
         onClose={() => setNewVisible(false)}
         onSuccess={() => {
           refetch();
-          showNotice("success", "Producto creado correctamente");
+          showNotice("success", t("lists.products.created"));
         }}
       />
 
@@ -384,16 +388,16 @@ export default function ProductsScreen() {
         onClose={handleEditClose}
         onSuccess={() => {
           refetch();
-          showNotice("success", "Producto actualizado correctamente");
+          showNotice("success", t("lists.products.updated"));
         }}
       />
 
       {/* Confirmación de borrado */}
       <ConfirmDialog
         visible={!!productToDelete}
-        title="Eliminar producto"
-        message={`¿Seguro que querés eliminar "${productToDelete?.descripcion ?? ""}"? Esta acción no se puede deshacer.`}
-        confirmText="Eliminar"
+        title={t("lists.products.deleteTitle")}
+        message={t("lists.products.deleteConfirm", { name: productToDelete?.descripcion ?? "" })}
+        confirmText={t("common.delete")}
         destructive
         loading={deleting}
         onConfirm={confirmDelete}

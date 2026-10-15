@@ -23,11 +23,13 @@ import { useAuth } from "../../hooks/useAuth";
 import { useMyAccount } from "../../hooks/useMyAccount";
 import { useNotice } from "../../hooks/useNotice";
 import { changeMyPassword, updateMyAccount } from "../../services/account.service";
-import { ROLE_LABELS, type Account } from "../../types/account.types";
+import type { Account } from "../../types/account.types";
 import { Field, FieldRow } from "../../components/FormFields";
 import { Badge } from "../../components/ListScreen";
-import NoticeBanner from "../../components/modals/NoticeBanner";
+import NoticeBanner from "../../components/NoticeBanner";
 import { colors } from "../../constants/theme";
+import { useI18n } from "../../i18n";
+import { useTheme } from "../../context/SettingsContext";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN = 8;
@@ -43,23 +45,23 @@ const profileFromAccount = (a: Account | null) => ({
 });
 
 /** "2024-03-15" -> "15 de marzo de 2024" (sin corrimiento por zona horaria) */
-function formatDateOnly(value: string | null | undefined) {
+function formatDateOnly(value: string | null | undefined, locale: string) {
   if (!value) return null;
   const [y, m, d] = value.slice(0, 10).split("-").map(Number);
   if (!y || !m || !d) return null;
-  return new Date(y, m - 1, d).toLocaleDateString("es-AR", {
+  return new Date(y, m - 1, d).toLocaleDateString(locale, {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
 }
 
-function formatDateTime(value: string | null | undefined) {
+function formatDateTime(value: string | null | undefined, locale: string) {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? null
-    : date.toLocaleString("es-AR", { dateStyle: "long", timeStyle: "short" });
+    : date.toLocaleString(locale, { dateStyle: "long", timeStyle: "short" });
 }
 
 /** 0 a 3 */
@@ -92,7 +94,7 @@ function Card({
           <Icon color={colors.brandLight} size={18} />
         </View>
         <View className="flex-1">
-          <Text className="text-white font-bold text-base">{title}</Text>
+          <Text className="text-ink font-bold text-base">{title}</Text>
           {subtitle ? <Text className="text-slate-400 text-xs">{subtitle}</Text> : null}
         </View>
       </View>
@@ -105,7 +107,7 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
   return (
     <View className="flex-row justify-between items-center py-2.5 border-t border-slate-700">
       <Text className="text-slate-400 text-sm">{label}</Text>
-      <Text className={`text-sm flex-1 text-right ml-4 ${value ? "text-white" : "text-slate-500"}`}>
+      <Text className={`text-sm flex-1 text-right ml-4 ${value ? "text-ink" : "text-slate-500"}`}>
         {value || "—"}
       </Text>
     </View>
@@ -125,6 +127,7 @@ function PrimaryButton({
   disabled?: boolean;
   loading?: boolean;
 }) {
+  const theme = useTheme();
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -137,7 +140,7 @@ function PrimaryButton({
         <ActivityIndicator color="white" />
       ) : (
         <>
-          <Icon color={disabled ? colors.muted : "#fff"} size={18} />
+          <Icon color={disabled ? theme.muted : "#fff"} size={18} />
           <Text className={`font-bold ml-2 ${disabled ? "text-slate-400" : "text-white"}`}>
             {label}
           </Text>
@@ -150,6 +153,8 @@ function PrimaryButton({
 /* ---------- Pantalla ---------- */
 
 export default function MyAccountScreen() {
+  const { t, locale } = useI18n();
+  const theme = useTheme();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
   const twoColumns = width >= 1100;
@@ -191,10 +196,10 @@ export default function MyAccountScreen() {
 
   const saveProfile = async () => {
     const found: typeof profileErrors = {};
-    if (!profile.nombre.trim()) found.nombre = "Ingresá tu nombre";
-    if (!profile.apellido.trim()) found.apellido = "Ingresá tu apellido";
+    if (!profile.nombre.trim()) found.nombre = t("account.err.firstName");
+    if (!profile.apellido.trim()) found.apellido = t("account.err.lastName");
     if (profile.email.trim() && !EMAIL.test(profile.email.trim()))
-      found.email = "El email no parece válido";
+      found.email = t("account.err.email");
     if (Object.keys(found).length) {
       setProfileErrors(found);
       return;
@@ -204,9 +209,9 @@ export default function MyAccountScreen() {
     try {
       const updated = await updateMyAccount(profile);
       setAccount(updated);
-      showNotice("success", "Tus datos se guardaron correctamente");
+      showNotice("success", t("account.notice.saved"));
     } catch (err) {
-      showNotice("error", err instanceof Error ? err.message : "No se pudieron guardar los datos");
+      showNotice("error", err instanceof Error ? err.message : t("account.notice.saveFail"));
     } finally {
       setSavingProfile(false);
     }
@@ -214,10 +219,10 @@ export default function MyAccountScreen() {
 
   const savePassword = async () => {
     const found: typeof pwErrors = {};
-    if (!pw.actual) found.actual = "Ingresá tu contraseña actual";
-    if (pw.nueva.length < PASSWORD_MIN) found.nueva = `Mínimo ${PASSWORD_MIN} caracteres`;
-    else if (pw.nueva === pw.actual) found.nueva = "Debe ser distinta de la actual";
-    if (pw.repetir !== pw.nueva) found.repetir = "Las contraseñas no coinciden";
+    if (!pw.actual) found.actual = t("account.err.currentPw");
+    if (pw.nueva.length < PASSWORD_MIN) found.nueva = t("account.err.pwMin", { n: PASSWORD_MIN });
+    else if (pw.nueva === pw.actual) found.nueva = t("account.err.pwSame");
+    if (pw.repetir !== pw.nueva) found.repetir = t("account.err.pwMismatch");
     if (Object.keys(found).length) {
       setPwErrors(found);
       return;
@@ -228,9 +233,9 @@ export default function MyAccountScreen() {
     try {
       await changeMyPassword(pw.actual, pw.nueva);
       setPw({ actual: "", nueva: "", repetir: "" });
-      showNotice("success", "Tu contraseña se cambió correctamente");
+      showNotice("success", t("account.notice.pwChanged"));
     } catch (err) {
-      setPwServerError(err instanceof Error ? err.message : "No se pudo cambiar la contraseña");
+      setPwServerError(err instanceof Error ? err.message : t("account.notice.pwFail"));
     } finally {
       setSavingPw(false);
     }
@@ -247,7 +252,7 @@ export default function MyAccountScreen() {
     return (
       <View className="flex-1 bg-slate-900 items-center justify-center">
         <ActivityIndicator size="large" color={colors.brandLight} />
-        <Text className="text-white mt-4">Cargando tu cuenta...</Text>
+        <Text className="text-ink mt-4">{t("account.loading")}</Text>
       </View>
     );
   }
@@ -256,11 +261,11 @@ export default function MyAccountScreen() {
     return (
       <View className="flex-1 bg-slate-900 items-center justify-center px-4">
         <AlertTriangle color={colors.danger} size={48} />
-        <Text className="text-white text-lg mt-4 text-center">
-          {error || "No se pudo cargar tu cuenta"}
+        <Text className="text-ink text-lg mt-4 text-center">
+          {error || t("account.loadFail")}
         </Text>
         <TouchableOpacity onPress={refetch} className="bg-brand-500 px-6 py-3 rounded-xl mt-4">
-          <Text className="text-white font-semibold">Reintentar</Text>
+          <Text className="text-white font-semibold">{t("account.retry")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -273,28 +278,28 @@ export default function MyAccountScreen() {
     : account.username.slice(0, 2).toUpperCase();
   const strength = passwordStrength(pw.nueva);
   const STRENGTH = [
-    { label: "Muy corta", bar: "bg-red-500", text: "text-red-400" },
-    { label: "Débil", bar: "bg-red-500", text: "text-red-400" },
-    { label: "Aceptable", bar: "bg-amber-500", text: "text-amber-400" },
-    { label: "Fuerte", bar: "bg-brand-400", text: "text-brand-400" },
+    { label: t("account.strength.0"), bar: "bg-red-500", text: "text-red-400" },
+    { label: t("account.strength.1"), bar: "bg-red-500", text: "text-red-400" },
+    { label: t("account.strength.2"), bar: "bg-amber-500", text: "text-amber-400" },
+    { label: t("account.strength.3"), bar: "bg-brand-400", text: "text-brand-400" },
   ][strength];
 
   /* ---------- Bloques ---------- */
 
   const personalData = (
-    <Card icon={User} title="Datos personales" subtitle="Lo que ven tus compañeros y los reportes">
+    <Card icon={User} title={t("account.personal.title")} subtitle={t("account.personal.subtitle")}>
       {emp ? (
         <>
           <FieldRow>
             <Field
-              label="Nombre"
+              label={t("account.field.firstName")}
               required
               value={profile.nombre}
               onChangeText={setProfileField("nombre")}
               error={profileErrors.nombre}
             />
             <Field
-              label="Apellido"
+              label={t("account.field.lastName")}
               required
               value={profile.apellido}
               onChangeText={setProfileField("apellido")}
@@ -302,23 +307,23 @@ export default function MyAccountScreen() {
             />
           </FieldRow>
           <Field
-            label="Email"
+            label={t("account.field.email")}
             value={profile.email}
             onChangeText={setProfileField("email")}
             keyboardType="email-address"
             autoCapitalize="none"
-            placeholder="tu@email.com"
+            placeholder={t("account.field.emailPlaceholder")}
             error={profileErrors.email}
           />
           <FieldRow>
             <Field
-              label="Teléfono"
+              label={t("account.field.phone")}
               value={profile.telefono}
               onChangeText={setProfileField("telefono")}
               keyboardType="phone-pad"
             />
             <Field
-              label="Dirección"
+              label={t("account.field.address")}
               value={profile.direccion}
               onChangeText={setProfileField("direccion")}
             />
@@ -332,11 +337,11 @@ export default function MyAccountScreen() {
                   setProfileErrors({});
                 }}
               >
-                <Text className="text-slate-300 font-semibold">Descartar cambios</Text>
+                <Text className="text-slate-300 font-semibold">{t("account.discard")}</Text>
               </TouchableOpacity>
             ) : null}
             <PrimaryButton
-              label="Guardar cambios"
+              label={t("account.saveChanges")}
               icon={Save}
               onPress={saveProfile}
               disabled={!dirty}
@@ -347,9 +352,7 @@ export default function MyAccountScreen() {
       ) : (
         <View className="bg-slate-900 border border-slate-600 rounded-xl p-4">
           <Text className="text-slate-300">
-            Tu usuario todavía no tiene una ficha de empleado, por eso no hay datos personales para
-            mostrar. Pedile a un administrador que la cargue. Mientras tanto podés cambiar tu
-            contraseña.
+            {t("account.noEmployee")}
           </Text>
         </View>
       )}
@@ -357,27 +360,27 @@ export default function MyAccountScreen() {
       {emp ? (
         <View className="mt-5">
           <Text className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">
-            Datos de la empresa
+            {t("account.company.title")}
           </Text>
-          <InfoRow label="DNI" value={emp.dni} />
-          <InfoRow label="Cargo" value={emp.cargo} />
-          <InfoRow label="Fecha de ingreso" value={formatDateOnly(emp.fecha_ingreso)} />
+          <InfoRow label={t("account.company.dni")} value={emp.dni} />
+          <InfoRow label={t("account.company.position")} value={emp.cargo} />
+          <InfoRow label={t("account.company.hireDate")} value={formatDateOnly(emp.fecha_ingreso, locale)} />
         </View>
       ) : null}
     </Card>
   );
 
   const security = (
-    <Card icon={KeyRound} title="Contraseña" subtitle={`Usá al menos ${PASSWORD_MIN} caracteres`}>
+    <Card icon={KeyRound} title={t("account.pw.title")} subtitle={t("account.pw.subtitle", { n: PASSWORD_MIN })}>
       <Field
-        label="Contraseña actual"
+        label={t("account.pw.current")}
         value={pw.actual}
         onChangeText={setPwField("actual")}
         secureTextEntry
         error={pwErrors.actual}
       />
       <Field
-        label="Nueva contraseña"
+        label={t("account.pw.new")}
         value={pw.nueva}
         onChangeText={setPwField("nueva")}
         secureTextEntry
@@ -399,7 +402,7 @@ export default function MyAccountScreen() {
         </View>
       ) : null}
       <Field
-        label="Repetir nueva contraseña"
+        label={t("account.pw.repeat")}
         value={pw.repetir}
         onChangeText={setPwField("repetir")}
         secureTextEntry
@@ -409,13 +412,13 @@ export default function MyAccountScreen() {
       {pwServerError ? (
         <View className="flex-row items-start bg-red-500/20 border border-red-500 rounded-xl px-3 py-3 mb-4">
           <AlertTriangle color={colors.danger} size={18} />
-          <Text className="text-white ml-2 flex-1">{pwServerError}</Text>
+          <Text className="text-ink ml-2 flex-1">{pwServerError}</Text>
         </View>
       ) : null}
 
       <View className="items-end">
         <PrimaryButton
-          label="Cambiar contraseña"
+          label={t("account.pw.change")}
           icon={KeyRound}
           onPress={savePassword}
           disabled={!pw.actual && !pw.nueva && !pw.repetir}
@@ -426,15 +429,15 @@ export default function MyAccountScreen() {
   );
 
   const session = (
-    <Card icon={ShieldCheck} title="Tu sesión">
-      <InfoRow label="Último acceso" value={formatDateTime(account.ultimo_acceso)} />
-      <InfoRow label="Cuenta creada" value={formatDateOnly(account.fecha_creacion)} />
+    <Card icon={ShieldCheck} title={t("account.session.title")}>
+      <InfoRow label={t("account.session.lastAccess")} value={formatDateTime(account.ultimo_acceso, locale)} />
+      <InfoRow label={t("account.session.created")} value={formatDateOnly(account.fecha_creacion, locale)} />
       <TouchableOpacity
         onPress={handleLogout}
         className="flex-row items-center justify-center rounded-xl py-3 mt-3 border border-slate-600 bg-slate-900"
       >
         <LogOut color={colors.wineLight} size={18} />
-        <Text className="text-white font-semibold ml-2">Cerrar sesión</Text>
+        <Text className="text-ink font-semibold ml-2">{t("account.session.logout")}</Text>
       </TouchableOpacity>
     </Card>
   );
@@ -449,10 +452,10 @@ export default function MyAccountScreen() {
           <Users color={colors.wineLight} size={18} />
         </View>
         <View className="flex-1">
-          <Text className="text-white font-bold">Administrar usuarios</Text>
-          <Text className="text-slate-400 text-xs">Alta, roles y accesos del equipo</Text>
+          <Text className="text-ink font-bold">{t("account.admin.title")}</Text>
+          <Text className="text-slate-400 text-xs">{t("account.admin.subtitle")}</Text>
         </View>
-        <ChevronRight color={colors.muted} size={20} />
+        <ChevronRight color={theme.muted} size={20} />
       </TouchableOpacity>
     ) : null;
 
@@ -468,8 +471,8 @@ export default function MyAccountScreen() {
         <View style={{ width: "100%", maxWidth: 1100, alignSelf: "center" }}>
           {/* Encabezado */}
           <View className="mb-5">
-            <Text className="text-2xl font-bold text-white">Mi cuenta</Text>
-            <Text className="text-slate-400 text-sm">Tus datos y la seguridad de tu acceso</Text>
+            <Text className="text-2xl font-bold text-ink">{t("account.header.title")}</Text>
+            <Text className="text-slate-400 text-sm">{t("account.header.subtitle")}</Text>
           </View>
 
           <NoticeBanner notice={notice} />
@@ -491,11 +494,11 @@ export default function MyAccountScreen() {
                 <Text className="text-white text-2xl font-bold">{initials}</Text>
               </View>
               <View className="flex-1">
-                <Text className="text-white text-2xl font-bold">{fullName}</Text>
+                <Text className="text-ink text-2xl font-bold">{fullName}</Text>
                 <Text className="text-slate-400 mb-3">@{account.username}</Text>
                 <View className="flex-row" style={{ gap: 8 }}>
-                  <Badge text={ROLE_LABELS[account.rol] ?? account.rol} tone="wine" />
-                  <Badge text={account.activo ? "Activo" : "Inactivo"} tone={account.activo ? "brand" : "amber"} />
+                  <Badge text={t(`account.role.${account.rol}`)} tone="wine" />
+                  <Badge text={account.activo ? t("account.active") : t("account.inactive")} tone={account.activo ? "brand" : "amber"} />
                 </View>
               </View>
             </View>

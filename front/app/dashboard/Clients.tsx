@@ -1,3 +1,4 @@
+import { useI18n } from "../../i18n";
 import { Users } from "lucide-react-native";
 import ListScreen, { Badge, Primary, Secondary } from "../../components/ListScreen";
 import EditClientModal from "../../components/modals/EditClientModal";
@@ -7,20 +8,23 @@ import { deleteClient } from "../../services/clients.service";
 import { Client } from "../../types/clients.types";
 
 export default function ClientsScreen() {
+  const { t } = useI18n();
   const { clients, loading, error, refetch } = useClients();
+  const typeLabel = (c: Client) =>
+    c.tipo_cliente === "MAYORISTA" ? t("lists.clients.wholesale") : t("lists.clients.retail");
 
   return (
     <ListScreen<Client>
-      title="Clientes"
-      subtitle="Datos de contacto y facturación"
+      title={t("lists.clients.title")}
+      subtitle={t("lists.clients.subtitle")}
       icon={Users}
-      noun="Cliente"
-      plural="clientes"
+      noun={t("lists.clients.noun")}
+      plural={t("lists.clients.plural")}
       items={clients}
       loading={loading}
       error={error}
       onRetry={refetch}
-      searchPlaceholder="Buscar por nombre, email o CUIT..."
+      searchPlaceholder={t("lists.clients.search")}
       matches={(c, q) =>
         c.nombre.toLowerCase().includes(q) ||
         (c.email ?? "").toLowerCase().includes(q) ||
@@ -28,27 +32,27 @@ export default function ClientsScreen() {
       }
       getName={(c) => c.nombre}
       columns={[
-        { header: "Cliente", flex: 1.4, render: (c) => <Primary>{c.nombre}</Primary> },
-        { header: "CUIT", width: 130, render: (c) => <Secondary>{c.cuit}</Secondary> },
-        { header: "Teléfono", flex: 1, render: (c) => <Secondary>{c.telefono}</Secondary> },
-        { header: "Email", flex: 1.4, render: (c) => <Secondary>{c.email}</Secondary> },
+        { header: t("lists.clients.colClient"), flex: 1.4, render: (c) => <Primary>{c.nombre}</Primary> },
+        { header: t("lists.col.cuit"), width: 130, render: (c) => <Secondary>{c.cuit}</Secondary> },
+        { header: t("lists.col.phone"), flex: 1, render: (c) => <Secondary>{c.telefono}</Secondary> },
+        { header: t("lists.col.email"), flex: 1.4, render: (c) => <Secondary>{c.email}</Secondary> },
         {
-          header: "Tipo",
+          header: t("lists.col.type"),
           width: 110,
           render: (c) => (
             <Badge
-              text={c.tipo_cliente === "MAYORISTA" ? "Mayorista" : "Minorista"}
+              text={typeLabel(c)}
               tone={c.tipo_cliente === "MAYORISTA" ? "wine" : "brand"}
             />
           ),
         },
       ]}
       cardLines={[
-        { label: "Razón social", value: (c) => c.razon_social },
-        { label: "CUIT", value: (c) => c.cuit },
-        { label: "Teléfono", value: (c) => c.telefono },
-        { label: "Email", value: (c) => c.email },
-        { label: "Tipo", value: (c) => (c.tipo_cliente === "MAYORISTA" ? "Mayorista" : "Minorista") },
+        { label: t("lists.col.legalName"), value: (c) => c.razon_social },
+        { label: t("lists.col.cuit"), value: (c) => c.cuit },
+        { label: t("lists.col.phone"), value: (c) => c.telefono },
+        { label: t("lists.col.email"), value: (c) => c.email },
+        { label: t("lists.col.type"), value: typeLabel },
       ]}
       onDelete={deleteClient}
       renderNewModal={(p) => <NewClientModal {...p} />}

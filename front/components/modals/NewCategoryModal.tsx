@@ -3,12 +3,14 @@ import FormModal from "../FormModal";
 import { Field } from "../FormFields";
 import { useFormState } from "../../hooks/useFormState";
 import { createCategory } from "../../services/categories.service";
+import { useI18n } from "../../i18n";
 
 type Props = { visible: boolean; onClose: () => void; onSuccess: () => void };
 
 const INITIAL = { nombre: "", descripcion: "" };
 
 export default function NewCategoryModal({ visible, onClose, onSuccess }: Props) {
+  const { t } = useI18n();
   const { values, errors, setErrors, set, submitting, serverError, submit } = useFormState(
     INITIAL,
     visible
@@ -16,7 +18,7 @@ export default function NewCategoryModal({ visible, onClose, onSuccess }: Props)
 
   const handleSave = () => {
     if (!values.nombre.trim()) {
-      setErrors({ nombre: "Ingresá el nombre de la categoría" });
+      setErrors({ nombre: t("forms.category.errName") });
       return;
     }
     submit(async () => {
@@ -33,28 +35,28 @@ export default function NewCategoryModal({ visible, onClose, onSuccess }: Props)
   return (
     <FormModal
       visible={visible}
-      title="Nueva categoría"
-      subtitle="Sirve para agrupar tus productos"
+      title={t("forms.category.title")}
+      subtitle={t("forms.category.subtitle")}
       icon={Blocks}
-      submitText="Crear categoría"
+      submitText={t("forms.category.submit")}
       submitting={submitting}
       error={serverError}
       onClose={onClose}
       onSubmit={handleSave}
     >
       <Field
-        label="Nombre"
+        label={t("forms.field.name")}
         required
         value={values.nombre}
         onChangeText={set("nombre")}
-        placeholder="Ej: Bebidas"
+        placeholder={t("forms.category.namePh")}
         error={errors.nombre}
       />
       <Field
-        label="Descripción"
+        label={t("forms.field.description")}
         value={values.descripcion}
         onChangeText={set("descripcion")}
-        placeholder="Opcional"
+        placeholder={t("forms.category.descPh")}
         multiline
       />
     </FormModal>

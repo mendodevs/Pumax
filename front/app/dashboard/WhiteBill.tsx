@@ -29,6 +29,9 @@ import {
 } from "../../services/billing.service";
 import SelectClientModal from "../../components/modals/SelectClientModal";
 import { colors } from "../../constants/theme";
+import { useI18n } from "../../i18n";
+import { useTheme } from "../../context/SettingsContext";
+import { money } from "../../utils/format";
 
 type CartItem = {
   id: number;
@@ -41,9 +44,6 @@ type CartItem = {
 
 type CreatedInvoice = { id: number; numero_factura: string | number };
 type Notice = { kind: "error" | "info" | "success"; text: string };
-
-const money = (n: number) =>
-  n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** Número de sección dentro de una tarjeta */
 function StepBadge({ n }: { n: number }) {
@@ -63,6 +63,8 @@ function Card({ children }: { children: React.ReactNode }) {
 }
 
 export default function WhiteBill() {
+  const { t, tn } = useI18n();
+  const theme = useTheme();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
@@ -132,7 +134,7 @@ export default function WhiteBill() {
   const addProduct = (product: Omit<CartItem, "quantity">) => {
     const exists = selectedProducts.find((p) => p.id === product.id);
     if (exists) {
-      showNotice("info", "El producto ya está en la lista");
+      showNotice("info", t("billing.notice.alreadyInList"));
       return;
     }
     setSelectedProducts([...selectedProducts, { ...product, quantity: 1 }]);
@@ -147,7 +149,7 @@ export default function WhiteBill() {
     const qty = parseInt(newQty) || 1;
     const product = products.find((p) => p.id === id);
     if (product && qty > product.stock) {
-      showNotice("error", `Stock disponible: ${product.stock}`);
+      showNotice("error", t("billing.notice.stockAvailable", { n: product.stock }));
       return;
     }
     if (qty <= 0) {
@@ -172,9 +174,9 @@ export default function WhiteBill() {
         lastCreatedInvoice.id,
         String(lastCreatedInvoice.numero_factura)
       );
-      showNotice("success", "PDF descargado correctamente");
+      showNotice("success", t("billing.notice.pdfOk"));
     } catch (error) {
-      showNotice("error", "No se pudo descargar el PDF");
+      showNotice("error", t("billing.notice.pdfFail"));
       console.error("Error downloading PDF:", error);
     } finally {
       setIsDownloadingPDF(false);
@@ -183,11 +185,11 @@ export default function WhiteBill() {
 
   const generateInvoice = async () => {
     if (!client) {
-      showNotice("error", "Seleccione un cliente");
+      showNotice("error", t("billing.notice.selectClient"));
       return;
     }
     if (selectedProducts.length === 0) {
-      showNotice("error", "Agregue productos a la factura");
+      showNotice("error", t("billing.notice.addProducts"));
       return;
     }
 
@@ -214,7 +216,7 @@ export default function WhiteBill() {
 
       // Mostrar mensaje de éxito
       setSuccessMessage(
-        `Factura #${invoice.numero_factura} generada · Total: $${money(total)}`
+        t("billing.notice.created", { num: invoice.numero_factura, total: money(total) })
       );
 
       // Limpiar formulario
@@ -231,7 +233,7 @@ export default function WhiteBill() {
         setLastCreatedInvoice(null);
       }, 10000);
     } catch (error) {
-      showNotice("error", "No se pudo generar la factura");
+      showNotice("error", t("billing.notice.createFail"));
       console.error("Error creating invoice:", error);
     } finally {
       setIsCreatingInvoice(false);
@@ -243,7 +245,7 @@ export default function WhiteBill() {
     return (
       <View className="flex-1 bg-slate-900 items-center justify-center">
         <ActivityIndicator size="large" color={colors.brandLight} />
-        <Text className="text-white mt-4">Cargando datos...</Text>
+        <Text className="text-ink mt-4">{t("billing.loading")}</Text>
       </View>
     );
   }
@@ -253,7 +255,7 @@ export default function WhiteBill() {
     return (
       <View className="flex-1 bg-slate-900 items-center justify-center px-4">
         <AlertTriangle color={colors.danger} size={48} />
-        <Text className="text-white text-lg mt-4 text-center">
+        <Text className="text-ink text-lg mt-4 text-center">
           {errorProducts || errorClients}
         </Text>
       </View>
@@ -265,7 +267,7 @@ export default function WhiteBill() {
     <TouchableOpacity
       onPress={generateInvoice}
       disabled={!canGenerate}
-      className={`py-2 flex-row items-center justify-center ${
+      className={`py-4 rounded-xl flex-row items-center justify-center ${
         canGenerate ? "bg-brand-500 active:bg-brand-700" : "bg-slate-600"
       }`}
     >
@@ -279,7 +281,7 @@ export default function WhiteBill() {
               canGenerate ? "text-white" : "text-slate-400"
             }`}
           >
-            Generar factura
+            {t("billing.generate")}
           </Text>
         </>
       )}
@@ -291,29 +293,29 @@ export default function WhiteBill() {
       <View className="h-1 bg-wine-600" />
       <View className="p-5">
         <View className="flex-row items-center justify-between mb-4">
-          <Text className="text-white font-bold text-lg">Resumen</Text>
+          <Text className="text-ink font-bold text-lg">{t("billing.summary")}</Text>
           <View className="bg-wine-600/20 border border-wine-600 rounded-full px-3 py-1">
-            <Text className="text-wine-400 text-xs font-bold">Factura B</Text>
+            <Text className="text-wine-400 text-xs font-bold">{t("billing.invoiceB")}</Text>
           </View>
         </View>
 
         <View className="flex-row justify-between mb-2">
-          <Text className="text-slate-400">Cliente</Text>
-          <Text className="text-white flex-1 text-right ml-4" numberOfLines={1}>
+          <Text className="text-slate-400">{t("billing.client")}</Text>
+          <Text className="text-ink flex-1 text-right ml-4" numberOfLines={1}>
             {selectedClient?.name ?? "—"}
           </Text>
         </View>
         <View className="flex-row justify-between mb-2">
-          <Text className="text-slate-400">Productos</Text>
-          <Text className="text-white">{selectedProducts.length}</Text>
+          <Text className="text-slate-400">{t("billing.products")}</Text>
+          <Text className="text-ink">{selectedProducts.length}</Text>
         </View>
         <View className="flex-row justify-between mb-4">
-          <Text className="text-slate-400">Unidades</Text>
-          <Text className="text-white">{totalUnits}</Text>
+          <Text className="text-slate-400">{t("billing.units")}</Text>
+          <Text className="text-ink">{totalUnits}</Text>
         </View>
 
         <View className="border-t border-slate-700 pt-4 mb-5 flex-row items-end justify-between">
-          <Text className="text-slate-300">Total</Text>
+          <Text className="text-slate-300">{t("billing.total")}</Text>
           <Text className="text-brand-400 text-3xl font-bold">${money(total)}</Text>
         </View>
 
@@ -321,7 +323,7 @@ export default function WhiteBill() {
 
         {!canGenerate && !isCreatingInvoice && (
           <Text className="text-slate-400 text-xs text-center mt-3">
-            {!client ? "Elegí un cliente" : "Agregá al menos un producto"} para poder facturar
+            {!client ? t("billing.hint.client") : t("billing.hint.products")}
           </Text>
         )}
       </View>
@@ -342,11 +344,11 @@ export default function WhiteBill() {
           {/* Encabezado */}
           <View className="flex-row items-center mb-5">
             <View className="w-11 h-11 rounded-xl bg-brand-700 items-center justify-center mr-3">
-            <Receipt color={canGenerate ? "#ae2151" : colors.muted} size={20} />
+              <Receipt color={colors.wineLight} size={22} />
             </View>
             <View>
-              <Text className="text-2xl font-bold text-white">Facturación</Text>
-              <Text className="text-slate-400 text-sm">Nueva factura</Text>
+              <Text className="text-2xl font-bold text-ink">{t("billing.title")}</Text>
+              <Text className="text-slate-400 text-sm">{t("billing.subtitle")}</Text>
             </View>
           </View>
 
@@ -370,7 +372,7 @@ export default function WhiteBill() {
                   ) : (
                     <>
                       <Download color={colors.brand} size={20} />
-                      <Text className="text-brand-600 font-bold ml-2">Descargar PDF</Text>
+                      <Text className="text-brand-600 font-bold ml-2">{t("billing.downloadPdf")}</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -405,7 +407,7 @@ export default function WhiteBill() {
               <Card>
                 <View className="flex-row items-center mb-4">
                   <StepBadge n={1} />
-                  <Text className="text-white font-semibold text-base">Cliente</Text>
+                  <Text className="text-ink font-semibold text-base">{t("billing.client")}</Text>
                 </View>
 
                 <TouchableOpacity
@@ -418,9 +420,9 @@ export default function WhiteBill() {
                 >
                   <View className="flex-1">
                     <Text
-                      className={selectedClient ? "text-white font-semibold" : "text-slate-400"}
+                      className={selectedClient ? "text-ink font-semibold" : "text-slate-400"}
                     >
-                      {selectedClient ? selectedClient.name : "Seleccionar cliente"}
+                      {selectedClient ? selectedClient.name : t("billing.selectClient")}
                     </Text>
                     {selectedClient && (selectedClient.cuit || selectedClient.razon_social) ? (
                       <Text className="text-slate-400 text-xs mt-1">
@@ -435,7 +437,7 @@ export default function WhiteBill() {
 
                 {clients.length > 0 && (
                   <>
-                    <Text className="text-slate-400 text-xs mt-4 mb-2">Acceso rápido</Text>
+                    <Text className="text-slate-400 text-xs mt-4 mb-2">{t("billing.quickAccess")}</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                       {clients.slice(0, 10).map((c) => {
                         const active = client === c.id.toString();
@@ -462,7 +464,7 @@ export default function WhiteBill() {
               <Card>
                 <View className="flex-row items-center mb-4">
                   <StepBadge n={2} />
-                  <Text className="text-white font-semibold text-base">Agregar productos</Text>
+                  <Text className="text-ink font-semibold text-base">{t("billing.addProducts")}</Text>
                 </View>
 
                 <View className="flex-row items-center bg-slate-900 rounded-xl border border-slate-600 px-3 py-2">
@@ -470,9 +472,9 @@ export default function WhiteBill() {
                   <TextInput
                     value={productSearch}
                     onChangeText={setProductSearch}
-                    placeholder="Buscar por nombre o código..."
-                    placeholderTextColor="#9CA3AF"
-                    className="flex-1 ml-2 text-white py-1"
+                    placeholder={t("billing.searchPlaceholder")}
+                    placeholderTextColor={theme.placeholder}
+                    className="flex-1 ml-2 text-ink py-1"
                   />
                   {productSearch ? (
                     <TouchableOpacity onPress={() => setProductSearch("")}>
@@ -483,7 +485,7 @@ export default function WhiteBill() {
 
                 {productSearch && filteredProducts.length === 0 && (
                   <Text className="text-slate-400 text-center py-4">
-                    No se encontraron productos
+                    {t("billing.noProductsFound")}
                   </Text>
                 )}
 
@@ -500,11 +502,11 @@ export default function WhiteBill() {
                           } ${product.stock <= 0 ? "opacity-40" : ""}`}
                         >
                           <View className="flex-1 pr-3">
-                            <Text className="text-white font-semibold">{product.name}</Text>
+                            <Text className="text-ink font-semibold">{product.name}</Text>
                             <Text className="text-slate-400 text-xs mt-1">
                               {product.code} ·{" "}
                               <Text className={product.stock <= 5 ? "text-amber-400" : ""}>
-                                Stock {product.stock}
+                                {t("billing.stock", { n: product.stock })}
                               </Text>
                             </Text>
                           </View>
@@ -525,17 +527,16 @@ export default function WhiteBill() {
               <Card>
                 <View className="flex-row items-center mb-4">
                   <StepBadge n={3} />
-                  <Text className="text-white font-semibold text-base flex-1">Detalle</Text>
+                  <Text className="text-ink font-semibold text-base flex-1">{t("billing.detail")}</Text>
                   <Text className="text-slate-400 text-sm">
-                    {selectedProducts.length}{" "}
-                    {selectedProducts.length === 1 ? "producto" : "productos"}
+                    {tn("billing.itemCount", selectedProducts.length)}
                   </Text>
                 </View>
 
                 {selectedProducts.length === 0 ? (
                   <View className="border border-dashed border-slate-600 rounded-xl py-8 items-center">
                     <Receipt color={colors.muted} size={28} />
-                    <Text className="text-slate-400 mt-2">Todavía no agregaste productos</Text>
+                    <Text className="text-slate-400 mt-2">{t("billing.emptyDetail")}</Text>
                   </View>
                 ) : (
                   selectedProducts.map((item, i) => (
@@ -545,9 +546,9 @@ export default function WhiteBill() {
                     >
                       <View className="flex-row items-start justify-between">
                         <View className="flex-1 pr-3">
-                          <Text className="text-white font-semibold">{item.name}</Text>
+                          <Text className="text-ink font-semibold">{item.name}</Text>
                           <Text className="text-slate-400 text-xs mt-1">
-                            {item.code} · ${money(Number(item.price))} c/u
+                            {t("billing.line", { code: item.code, price: money(Number(item.price)) })}
                           </Text>
                         </View>
                         <TouchableOpacity
@@ -574,7 +575,7 @@ export default function WhiteBill() {
                             value={item.quantity.toString()}
                             onChangeText={(text) => updateQuantity(item.id, text)}
                             keyboardType="numeric"
-                            className="text-white text-center font-semibold"
+                            className="text-ink w-12 text-center font-semibold"
                           />
                           <TouchableOpacity
                             onPress={() => updateQuantity(item.id, String(item.quantity + 1))}
@@ -584,7 +585,7 @@ export default function WhiteBill() {
                           </TouchableOpacity>
                         </View>
 
-                        <Text className="text-white font-bold text-lg">
+                        <Text className="text-ink font-bold text-lg">
                           ${money(item.price * item.quantity)}
                         </Text>
                       </View>
@@ -605,7 +606,7 @@ export default function WhiteBill() {
         <View className="bg-slate-800 border-t border-slate-700 px-4 py-4">
           <View className="flex-row justify-between items-end mb-3">
             <Text className="text-slate-300">
-              Total · {totalUnits} {totalUnits === 1 ? "unidad" : "unidades"}
+              {tn("billing.footerTotal", totalUnits)}
             </Text>
             <Text className="text-brand-400 text-2xl font-bold">${money(total)}</Text>
           </View>

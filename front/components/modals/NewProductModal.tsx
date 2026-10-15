@@ -4,6 +4,7 @@ import { ChipSelect, Field, FieldRow, Section } from "../FormFields";
 import { useFormState, toNumber } from "../../hooks/useFormState";
 import { useCategories } from "../../hooks/useCategories";
 import { createProduct } from "../../services/products.service";
+import { useI18n } from "../../i18n";
 
 type Props = { visible: boolean; onClose: () => void; onSuccess: () => void };
 
@@ -21,12 +22,13 @@ const INITIAL = {
 const round2 = (n: number) => String(Math.round(n * 100) / 100);
 
 export default function NewProductModal({ visible, onClose, onSuccess }: Props) {
+  const { t } = useI18n();
   const { categories } = useCategories();
   const { values, setValues, errors, setErrors, set, submitting, serverError, submit } =
     useFormState(INITIAL, visible);
 
   const categoryOptions = [
-    { value: "", label: "Sin categoría" },
+    { value: "", label: t("forms.product.noCategory") },
     ...categories.map((c) => ({ value: String(c.id), label: c.nombre })),
   ];
 
@@ -66,15 +68,15 @@ export default function NewProductModal({ visible, onClose, onSuccess }: Props) 
     const stock = toNumber(values.stock || "0");
     const minimo = toNumber(values.stock_minimo || "0");
 
-    if (!values.codigo.trim()) found.codigo = "Ingresá un código";
-    if (!values.descripcion.trim()) found.descripcion = "Ingresá el nombre del producto";
-    if (Number.isNaN(base) || base < 0) found.precio_base = "Ingresá el precio de costo";
-    if (Number.isNaN(venta) || venta <= 0) found.precio_venta = "Debe ser mayor a 0";
-    if (Number.isNaN(margen)) found.margen_ganancia = "Número inválido";
+    if (!values.codigo.trim()) found.codigo = t("forms.product.errCode");
+    if (!values.descripcion.trim()) found.descripcion = t("forms.product.errName");
+    if (Number.isNaN(base) || base < 0) found.precio_base = t("forms.product.errCost");
+    if (Number.isNaN(venta) || venta <= 0) found.precio_venta = t("forms.product.errSale");
+    if (Number.isNaN(margen)) found.margen_ganancia = t("forms.product.errNumber");
     if (Number.isNaN(stock) || stock < 0 || !Number.isInteger(stock))
-      found.stock = "Entero, 0 o más";
+      found.stock = t("forms.product.errInteger");
     if (Number.isNaN(minimo) || minimo < 0 || !Number.isInteger(minimo))
-      found.stock_minimo = "Entero, 0 o más";
+      found.stock_minimo = t("forms.product.errInteger");
 
     if (Object.keys(found).length) {
       setErrors(found);
@@ -101,10 +103,10 @@ export default function NewProductModal({ visible, onClose, onSuccess }: Props) 
   return (
     <FormModal
       visible={visible}
-      title="Nuevo producto"
-      subtitle="Se suma al catálogo y al stock"
+      title={t("forms.product.title")}
+      subtitle={t("forms.product.subtitle")}
       icon={Lamp}
-      submitText="Crear producto"
+      submitText={t("forms.product.submit")}
       submitting={submitting}
       error={serverError}
       onClose={onClose}
@@ -112,35 +114,35 @@ export default function NewProductModal({ visible, onClose, onSuccess }: Props) 
     >
       <FieldRow>
         <Field
-          label="Código"
+          label={t("forms.field.code")}
           required
           value={values.codigo}
           onChangeText={set("codigo")}
-          placeholder="Ej: LAM-001"
+          placeholder={t("forms.product.codePh")}
           autoCapitalize="characters"
           error={errors.codigo}
         />
         <Field
-          label="Nombre"
+          label={t("forms.field.name")}
           required
           value={values.descripcion}
           onChangeText={set("descripcion")}
-          placeholder="Ej: Lámpara LED 9W"
+          placeholder={t("forms.product.namePh")}
           error={errors.descripcion}
         />
       </FieldRow>
 
       <ChipSelect
-        label="Categoría"
+        label={t("forms.product.category")}
         options={categoryOptions}
         value={values.categoria_id}
         onChange={set("categoria_id")}
       />
 
-      <Section title="Precios" />
+      <Section title={t("forms.product.sectionPrices")} />
       <FieldRow>
         <Field
-          label="Costo"
+          label={t("forms.product.cost")}
           required
           value={values.precio_base}
           onChangeText={onBaseOrMargin("precio_base")}
@@ -149,7 +151,7 @@ export default function NewProductModal({ visible, onClose, onSuccess }: Props) 
           error={errors.precio_base}
         />
         <Field
-          label="Margen"
+          label={t("forms.product.margin")}
           value={values.margen_ganancia}
           onChangeText={onBaseOrMargin("margen_ganancia")}
           keyboardType="decimal-pad"
@@ -158,31 +160,31 @@ export default function NewProductModal({ visible, onClose, onSuccess }: Props) 
         />
       </FieldRow>
       <Field
-        label="Precio de venta"
+        label={t("forms.product.salePrice")}
         required
         value={values.precio_venta}
         onChangeText={onSalePrice}
         keyboardType="decimal-pad"
         prefix="$"
-        hint="Se calcula con el costo y el margen, pero podés escribirlo vos."
+        hint={t("forms.product.salePriceHint")}
         error={errors.precio_venta}
       />
 
-      <Section title="Stock" />
+      <Section title={t("forms.product.sectionStock")} />
       <FieldRow>
         <Field
-          label="Stock inicial"
+          label={t("forms.product.initialStock")}
           value={values.stock}
           onChangeText={set("stock")}
           keyboardType="number-pad"
           error={errors.stock}
         />
         <Field
-          label="Stock mínimo"
+          label={t("forms.product.minStock")}
           value={values.stock_minimo}
           onChangeText={set("stock_minimo")}
           keyboardType="number-pad"
-          hint="Avisa cuando queda poco"
+          hint={t("forms.product.minStockHint")}
           error={errors.stock_minimo}
         />
       </FieldRow>

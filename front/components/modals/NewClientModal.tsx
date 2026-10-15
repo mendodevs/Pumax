@@ -3,6 +3,7 @@ import FormModal from "../FormModal";
 import { ChipSelect, Field, FieldRow, Section } from "../FormFields";
 import { useFormState, toNumber } from "../../hooks/useFormState";
 import { createClient } from "../../services/clients.service";
+import { useI18n } from "../../i18n";
 import type { CondicionIVA, TipoCliente } from "../../types/clients.types";
 
 type Props = { visible: boolean; onClose: () => void; onSuccess: () => void };
@@ -22,21 +23,23 @@ const INITIAL = {
   limite_credito: "0",
 };
 
+// La etiqueta es la clave del diccionario; se traduce al renderizar
 const TIPOS: { value: TipoCliente; label: string }[] = [
-  { value: "MINORISTA", label: "Minorista" },
-  { value: "MAYORISTA", label: "Mayorista" },
+  { value: "MINORISTA", label: "forms.client.retail" },
+  { value: "MAYORISTA", label: "forms.client.wholesale" },
 ];
 
 const IVA: { value: CondicionIVA; label: string }[] = [
-  { value: "CONSUMIDOR_FINAL", label: "Consumidor final" },
-  { value: "MONOTRIBUTO", label: "Monotributo" },
-  { value: "RI", label: "Resp. inscripto" },
-  { value: "EXENTO", label: "Exento" },
+  { value: "CONSUMIDOR_FINAL", label: "forms.client.vatFinal" },
+  { value: "MONOTRIBUTO", label: "forms.client.vatMono" },
+  { value: "RI", label: "forms.client.vatRI" },
+  { value: "EXENTO", label: "forms.client.vatExempt" },
 ];
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function NewClientModal({ visible, onClose, onSuccess }: Props) {
+  const { t } = useI18n();
   const { values, errors, setErrors, set, submitting, serverError, submit } = useFormState(
     INITIAL,
     visible
@@ -44,17 +47,17 @@ export default function NewClientModal({ visible, onClose, onSuccess }: Props) {
 
   const handleSave = () => {
     const found: typeof errors = {};
-    if (!values.nombre.trim()) found.nombre = "Ingresá el nombre del cliente";
+    if (!values.nombre.trim()) found.nombre = t("forms.client.errName");
     if (values.cuit.trim() && values.cuit.replace(/\D/g, "").length !== 11)
-      found.cuit = "El CUIT tiene 11 dígitos";
+      found.cuit = t("forms.err.cuit");
     if (values.email.trim() && !EMAIL.test(values.email.trim()))
-      found.email = "El email no parece válido";
+      found.email = t("forms.err.email");
 
     const descuento = toNumber(values.descuento_habitual || "0");
     const limite = toNumber(values.limite_credito || "0");
     if (Number.isNaN(descuento) || descuento < 0 || descuento > 100)
-      found.descuento_habitual = "Entre 0 y 100";
-    if (Number.isNaN(limite) || limite < 0) found.limite_credito = "Ingresá un importe válido";
+      found.descuento_habitual = t("forms.client.errDiscount");
+    if (Number.isNaN(limite) || limite < 0) found.limite_credito = t("forms.client.errCredit");
 
     if (Object.keys(found).length) {
       setErrors(found);
@@ -86,27 +89,27 @@ export default function NewClientModal({ visible, onClose, onSuccess }: Props) {
   return (
     <FormModal
       visible={visible}
-      title="Nuevo cliente"
-      subtitle="Datos de contacto y facturación"
+      title={t("forms.client.title")}
+      subtitle={t("forms.client.subtitle")}
       icon={Users}
-      submitText="Crear cliente"
+      submitText={t("forms.client.submit")}
       submitting={submitting}
       error={serverError}
       onClose={onClose}
       onSubmit={handleSave}
     >
       <Field
-        label="Nombre"
+        label={t("forms.field.name")}
         required
         value={values.nombre}
         onChangeText={set("nombre")}
-        placeholder="Nombre o nombre de fantasía"
+        placeholder={t("forms.client.namePh")}
         error={errors.nombre}
       />
       <FieldRow>
-        <Field label="Razón social" value={values.razon_social} onChangeText={set("razon_social")} />
+        <Field label={t("forms.field.legalName")} value={values.razon_social} onChangeText={set("razon_social")} />
         <Field
-          label="CUIT"
+          label={t("forms.field.cuit")}
           value={values.cuit}
           onChangeText={set("cuit")}
           placeholder="20-12345678-9"
@@ -115,16 +118,16 @@ export default function NewClientModal({ visible, onClose, onSuccess }: Props) {
         />
       </FieldRow>
 
-      <Section title="Contacto" />
+      <Section title={t("forms.section.contact")} />
       <FieldRow>
         <Field
-          label="Teléfono"
+          label={t("forms.field.phone")}
           value={values.telefono}
           onChangeText={set("telefono")}
           keyboardType="phone-pad"
         />
         <Field
-          label="Email"
+          label={t("forms.field.email")}
           value={values.email}
           onChangeText={set("email")}
           keyboardType="email-address"
@@ -132,28 +135,28 @@ export default function NewClientModal({ visible, onClose, onSuccess }: Props) {
           error={errors.email}
         />
       </FieldRow>
-      <Field label="Dirección" value={values.direccion} onChangeText={set("direccion")} />
+      <Field label={t("forms.field.address")} value={values.direccion} onChangeText={set("direccion")} />
       <FieldRow>
-        <Field label="Localidad" value={values.localidad} onChangeText={set("localidad")} />
-        <Field label="Provincia" value={values.provincia} onChangeText={set("provincia")} />
+        <Field label={t("forms.field.city")} value={values.localidad} onChangeText={set("localidad")} />
+        <Field label={t("forms.field.province")} value={values.provincia} onChangeText={set("provincia")} />
       </FieldRow>
 
-      <Section title="Condiciones comerciales" />
+      <Section title={t("forms.client.sectionTerms")} />
       <ChipSelect
-        label="Tipo de cliente"
-        options={TIPOS}
+        label={t("forms.client.type")}
+        options={TIPOS.map((o) => ({ ...o, label: t(o.label) }))}
         value={values.tipo_cliente as TipoCliente}
         onChange={set("tipo_cliente")}
       />
       <ChipSelect
-        label="Condición frente al IVA"
-        options={IVA}
+        label={t("forms.client.vat")}
+        options={IVA.map((o) => ({ ...o, label: t(o.label) }))}
         value={values.condicion_iva as CondicionIVA}
         onChange={set("condicion_iva")}
       />
       <FieldRow>
         <Field
-          label="Descuento habitual"
+          label={t("forms.client.discount")}
           value={values.descuento_habitual}
           onChangeText={set("descuento_habitual")}
           keyboardType="decimal-pad"
@@ -161,7 +164,7 @@ export default function NewClientModal({ visible, onClose, onSuccess }: Props) {
           error={errors.descuento_habitual}
         />
         <Field
-          label="Límite de crédito"
+          label={t("forms.client.creditLimit")}
           value={values.limite_credito}
           onChangeText={set("limite_credito")}
           keyboardType="decimal-pad"
