@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { sequelize } = require('../config/database'); // Importar sequelize
+const sequelize = require('../config/database');
 const Pedido = require('../models/Pedido');
 const Cliente = require('../models/Cliente');
 const Usuario = require('../models/Usuario');

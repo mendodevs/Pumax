@@ -17,7 +17,7 @@ export interface Usuario {
   id: number;
   empleado_id: number | null;
   username: string;
-  rol: 'ADMIN' | 'VENDEDOR' | 'DEPOSITO' | 'FACTURACION' | 'VIAJANTE';
+  rol: 'SUPERADMIN' | 'ADMIN' | 'VENDEDOR' | 'DEPOSITO' | 'FACTURACION' | 'VIAJANTE';
   activo: boolean;
   ultimo_acceso: string | null;
   fecha_creacion: string;

@@ -441,9 +441,9 @@ export default function MyAccountScreen() {
       </TouchableOpacity>
     </Card>
   );
-
+//Seccion para administrar usuarios del sistema, solo visible para superadmin
   const adminCard =
-    account.rol === "ADMIN" ? (
+    account.rol === "SUPERADMIN" ? (
       <TouchableOpacity
         onPress={() => router.push("/dashboard/AdminUsers")}
         className="flex-row items-center bg-slate-800 border border-wine-600 rounded-2xl p-5 mb-4"

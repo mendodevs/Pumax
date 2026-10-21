@@ -105,7 +105,6 @@ exports.create = async (req, res) => {
       numero_remito,
       numero_factura,
       fecha_ingreso,
-      usuario_registro_id,
       observaciones,
       detalles
     } = req.body;
@@ -113,6 +112,12 @@ exports.create = async (req, res) => {
     // Validar que existan detalles
     if (!detalles || detalles.length === 0) {
       throw new Error('Debe incluir al menos un producto');
+    }
+
+    // El proveedor tiene que ser de este negocio (findByPk ya filtra por negocio)
+    const proveedor = await Proveedor.findByPk(proveedor_id);
+    if (!proveedor) {
+      throw new Error('Proveedor no encontrado');
     }
     
     // Calcular total
@@ -131,7 +136,7 @@ exports.create = async (req, res) => {
       numero_remito,
       numero_factura,
       fecha_ingreso,
-      usuario_registro_id,
+      usuario_registro_id: req.user.id,
       total_compra,
       observaciones,
       estado: 'PENDIENTE'
@@ -196,6 +201,7 @@ exports.completar = async (req, res) => {
     }
     
     if (ingreso.estado === 'COMPLETADO') {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: 'Este ingreso ya fue completado'

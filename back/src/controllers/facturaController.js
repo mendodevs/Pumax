@@ -92,7 +92,7 @@ exports.createNegro = async (req, res) => {
   const transaction = await Factura.sequelize.transaction();
   
   try {
-    const { pedido_id, cliente_id, usuario_emision_id, observaciones, items } = req.body;
+    const { pedido_id, cliente_id, observaciones, items } = req.body;
     let subtotal = 0;
     let total = 0;
     let clienteIdFinal = cliente_id;
@@ -120,6 +120,10 @@ exports.createNegro = async (req, res) => {
     } else if (items && Array.isArray(items) && items.length > 0) {
       if (!cliente_id) {
         throw new Error('Debe especificar un cliente_id');
+      }
+      const clienteDirecto = await Cliente.findByPk(cliente_id);
+      if (!clienteDirecto) {
+        throw new Error('Cliente no encontrado');
       }
       for (const item of items) {
         if (!item.producto_id || !item.cantidad || !item.precio_unitario) {
@@ -174,7 +178,7 @@ exports.createNegro = async (req, res) => {
       total,
       estado: 'EMITIDA',
       observaciones,
-      usuario_emision_id
+      usuario_emision_id: req.user.id
     }, { transaction });
     
     // Si viene de pedido, actualizar estado y descontar stock de cada producto
@@ -249,7 +253,7 @@ exports.createLegal = async (req, res) => {
   const transaction = await Factura.sequelize.transaction();
 
   try {
-    const { pedido_id, cliente_id, tipo_factura, usuario_emision_id, observaciones, items } = req.body;
+    const { pedido_id, cliente_id, tipo_factura, observaciones, items } = req.body;
 
     // Validar tipo de factura
     if (!['A', 'B', 'C'].includes(tipo_factura)) {
@@ -396,7 +400,7 @@ exports.createLegal = async (req, res) => {
       vencimiento_cae: responseArca.vencimiento_cae,
       estado: 'EMITIDA',
       observaciones,
-      usuario_emision_id
+      usuario_emision_id: req.user.id
     }, { transaction });
 
     // Si hay pedido, actualizar su estado
@@ -479,7 +483,7 @@ exports.createLegal = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error creando factura legal:', error.message);
+    console.error('Error creando factura legal:', error.stack);
     await transaction.rollback();
     res.status(400).json({
       success: false,

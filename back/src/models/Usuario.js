@@ -7,6 +7,7 @@ const Usuario = sequelize.define('Usuario', {
     primaryKey: true,
     autoIncrement: true
   },
+  // negocio_id lo agrega aplicarTenant() desde models/index.js
   empleado_id: {
     type: DataTypes.BIGINT,
     allowNull: true
@@ -16,12 +17,36 @@ const Usuario = sequelize.define('Usuario', {
     unique: true,
     allowNull: false
   },
+  email: {
+    type: DataTypes.STRING(100),
+    unique: true,
+    allowNull: true,
+    validate: { isEmail: true }
+  },
+  google_id: {
+    type: DataTypes.STRING(50),
+    unique: true,
+    allowNull: true
+  },
   password_hash: {
     type: DataTypes.STRING(255),
-    allowNull: false
+    allowNull: true // null en cuentas creadas con Google
+  },
+  proveedor_auth: {
+    type: DataTypes.ENUM('LOCAL', 'GOOGLE'),
+    allowNull: false,
+    defaultValue: 'LOCAL'
+  },
+  email_verificado: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  acepta_promociones: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   },
   rol: {
-    type: DataTypes.ENUM('ADMIN', 'VENDEDOR', 'DEPOSITO', 'FACTURACION', 'VIAJANTE'),
+    type: DataTypes.ENUM('SUPERADMIN', 'ADMIN', 'VENDEDOR', 'DEPOSITO', 'FACTURACION', 'VIAJANTE'),
     allowNull: false
   },
   activo: {

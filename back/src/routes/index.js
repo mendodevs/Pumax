@@ -13,6 +13,10 @@ const ingresoRoutes = require('./ingresoRoutes');
 const reporteRoutes = require('./reporteRoutes');
 const exportRoutes = require('./exportRoutes');
 const busquedasRoutes = require('./busquedasRoutes');
+const authRoutes = require('./authRoutes');
+
+// Registro, Google y recuperación de contraseña (públicas)
+router.use('/auth', authRoutes);
 
 // Rutas de usuarios (login y verificar-sesion son públicas, CRUD es protegido internamente)
 router.use('/usuarios', usuarioRoutes);

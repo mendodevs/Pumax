@@ -92,7 +92,17 @@ exports.create = async (req, res) => {
   const transaction = await Pedido.sequelize.transaction();
   
   try {
-    const { cliente_id, usuario_registro_id, detalles, observaciones } = req.body;
+    const { cliente_id, detalles, observaciones } = req.body;
+
+    if (!Array.isArray(detalles) || detalles.length === 0) {
+      throw new Error('Debe incluir al menos un producto');
+    }
+
+    // El cliente tiene que ser de este negocio (findByPk ya filtra por negocio)
+    const cliente = await Cliente.findByPk(cliente_id);
+    if (!cliente) {
+      throw new Error('Cliente no encontrado');
+    }
     
     // Generar número de pedido
     const ultimoPedido = await Pedido.findOne({
@@ -120,7 +130,7 @@ exports.create = async (req, res) => {
     const pedido = await Pedido.create({
       numero_pedido: numeroNuevo,
       cliente_id,
-      usuario_registro_id,
+      usuario_registro_id: req.user.id,
       subtotal,
       total: subtotal,
       observaciones

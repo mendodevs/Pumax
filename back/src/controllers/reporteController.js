@@ -6,6 +6,13 @@ const Producto = require('../models/Producto');
 const Cliente = require('../models/Cliente');
 const DetallePedido = require('../models/DetallePedido');
 const Categoria = require('../models/Categoria');
+const { negocioRequerido, consultaNegocio } = require('../utils/tenant');
+
+// SQL escrito a mano: siempre con :negocioId y parámetros (nunca texto pegado en el SQL).
+const consulta = (sql, opciones) => consultaNegocio(sequelize, sql, opciones);
+
+// LIMIT seguro: entero entre 1 y 500
+const limiteSeguro = (v, def = 20) => Math.min(Math.max(parseInt(v, 10) || def, 1), 500);
 
 /**
  * MÓDULO DE REPORTES - PUMAX
@@ -17,6 +24,7 @@ const Categoria = require('../models/Categoria');
 // ============================================
 const getDashboard = async (req, res) => {
   try {
+    const negocioId = negocioRequerido();
     const hoy = new Date();
     const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
     const primerDiaMesAnterior = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
@@ -30,6 +38,7 @@ const getDashboard = async (req, res) => {
     // Ventas del mes actual
     const ventasMesActual = await Pedido.sum('total', {
       where: {
+        negocio_id: negocioId,
         fecha_pedido: { [Op.gte]: primerDiaMes },
         estado: 'ENTREGADO'
       }
@@ -38,6 +47,7 @@ const getDashboard = async (req, res) => {
     // Ventas del mes anterior
     const ventasMesAnterior = await Pedido.sum('total', {
       where: {
+        negocio_id: negocioId,
         fecha_pedido: {
           [Op.between]: [primerDiaMesAnterior, ultimoDiaMesAnterior]
         },
@@ -53,6 +63,7 @@ const getDashboard = async (req, res) => {
     // Facturación del mes
     const facturacionMes = await Factura.sum('total', {
       where: {
+        negocio_id: negocioId,
         fecha_emision: { [Op.gte]: primerDiaMes },
         estado: 'EMITIDA'
       }
@@ -76,10 +87,10 @@ const getDashboard = async (req, res) => {
     });
 
     // Alertas de stock usando SQL raw
-    const [stockResult] = await sequelize.query(`
+    const [stockResult] = await consulta(`
       SELECT COUNT(*) as alertas_stock
       FROM productos 
-      WHERE stock <= stock_minimo AND activo = 1
+      WHERE negocio_id = :negocioId AND stock <= stock_minimo AND activo = 1
     `, { type: QueryTypes.SELECT });
     const alertasStock = stockResult.alertas_stock;
 
@@ -166,6 +177,7 @@ const getDashboard = async (req, res) => {
           as: 'pedido',
           attributes: [],
           where: {
+            negocio_id: negocioId,
             fecha_pedido: { [Op.gte]: primerDiaMes },
             estado: 'ENTREGADO'
           }
@@ -241,6 +253,7 @@ const getDashboard = async (req, res) => {
     
     const ventasHoy = await Pedido.sum('total', {
       where: {
+        negocio_id: negocioId,
         fecha_pedido: { [Op.gte]: hoyInicio },
         estado: 'ENTREGADO'
       }
@@ -340,13 +353,16 @@ const getVentasPorPeriodo = async (req, res) => {
     }
 
     let whereClause = `
-      WHERE fecha_pedido BETWEEN '${fecha_desde}' AND '${fecha_hasta}'
-        AND estado != 'CANCELADO'
+      WHERE p.negocio_id = :negocioId
+        AND p.fecha_pedido BETWEEN :fecha_desde AND :fecha_hasta
+        AND p.estado != 'CANCELADO'
     `;
+    const replacements = { fecha_desde, fecha_hasta };
 
     // Filtro opcional por tipo de operación (BLANCO/NEGRO)
     if (tipo_operacion) {
-      whereClause += ` AND tipo_operacion = '${tipo_operacion}'`;
+      whereClause += ' AND p.tipo_operacion = :tipo_operacion';
+      replacements.tipo_operacion = tipo_operacion;
     }
 
     // Resumen general
@@ -357,7 +373,7 @@ const getVentasPorPeriodo = async (req, res) => {
         COALESCE(AVG(total), 0) as ticket_promedio,
         tipo_operacion,
         COUNT(DISTINCT cliente_id) as clientes_unicos
-      FROM pedidos
+      FROM pedidos p
       ${whereClause}
       GROUP BY tipo_operacion
     `;
@@ -369,7 +385,7 @@ const getVentasPorPeriodo = async (req, res) => {
         COUNT(*) as cantidad_pedidos,
         COALESCE(SUM(total), 0) as total_dia,
         tipo_operacion
-      FROM pedidos
+      FROM pedidos p
       ${whereClause}
       GROUP BY DATE(fecha_pedido), tipo_operacion
       ORDER BY fecha DESC
@@ -390,9 +406,9 @@ const getVentasPorPeriodo = async (req, res) => {
       ORDER BY total_comprado DESC
     `;
 
-    const resumen = await sequelize.query(resumenQuery, { type: QueryTypes.SELECT });
-    const ventasPorDia = await sequelize.query(ventasPorDiaQuery, { type: QueryTypes.SELECT });
-    const ventasPorCliente = await sequelize.query(ventasPorClienteQuery, { type: QueryTypes.SELECT });
+    const resumen = await consulta(resumenQuery, { replacements, type: QueryTypes.SELECT });
+    const ventasPorDia = await consulta(ventasPorDiaQuery, { replacements, type: QueryTypes.SELECT });
+    const ventasPorCliente = await consulta(ventasPorClienteQuery, { replacements, type: QueryTypes.SELECT });
 
     res.json({
       periodo: {
@@ -421,13 +437,16 @@ const getStockCritico = async (req, res) => {
     const { categoria_id } = req.query;
     
     let whereClause = `
-      WHERE p.stock <= p.stock_minimo 
+      WHERE p.negocio_id = :negocioId
+        AND p.stock <= p.stock_minimo
         AND p.activo = 1
     `;
-    
+    const replacements = {};
+
     // Filtro por categoría
     if (categoria_id) {
-      whereClause += ` AND p.categoria_id = ${categoria_id}`;
+      whereClause += ' AND p.categoria_id = :categoria_id';
+      replacements.categoria_id = categoria_id;
     }
     
     // Usar la vista existente o query directa
@@ -449,7 +468,7 @@ const getStockCritico = async (req, res) => {
       ORDER BY (p.stock_minimo - p.stock) DESC
     `;
 
-    const productosStockBajo = await sequelize.query(stockCriticoQuery, { type: QueryTypes.SELECT });
+    const productosStockBajo = await consulta(stockCriticoQuery, { replacements, type: QueryTypes.SELECT });
 
     // Resumen
     const resumen = {
@@ -487,12 +506,15 @@ const getReporteFacturacion = async (req, res) => {
     }
 
     let whereClause = `
-      WHERE fecha_emision BETWEEN '${fecha_desde}' AND '${fecha_hasta}'
-        AND estado = 'EMITIDA'
+      WHERE f.negocio_id = :negocioId
+        AND f.fecha_emision BETWEEN :fecha_desde AND :fecha_hasta
+        AND f.estado = 'EMITIDA'
     `;
+    const replacements = { fecha_desde, fecha_hasta };
 
     if (tipo_factura) {
-      whereClause += ` AND tipo_factura = '${tipo_factura}'`;
+      whereClause += ' AND f.tipo_factura = :tipo_factura';
+      replacements.tipo_factura = tipo_factura;
     }
 
     // Resumen por tipo de factura
@@ -504,7 +526,7 @@ const getReporteFacturacion = async (req, res) => {
         COALESCE(SUM(iva_105), 0) as total_iva_105,
         COALESCE(SUM(iva_21), 0) as total_iva_21,
         COALESCE(SUM(total), 0) as total_facturado
-      FROM facturas
+      FROM facturas f
       ${whereClause}
       GROUP BY tipo_factura
     `;
@@ -516,7 +538,7 @@ const getReporteFacturacion = async (req, res) => {
         tipo_factura,
         COUNT(*) as cantidad,
         COALESCE(SUM(total), 0) as total_dia
-      FROM facturas
+      FROM facturas f
       ${whereClause}
       GROUP BY DATE(fecha_emision), tipo_factura
       ORDER BY fecha DESC
@@ -539,9 +561,9 @@ const getReporteFacturacion = async (req, res) => {
       LIMIT 10
     `;
 
-    const resumen = await sequelize.query(resumenQuery, { type: QueryTypes.SELECT });
-    const facturacionDiaria = await sequelize.query(facturacionDiariaQuery, { type: QueryTypes.SELECT });
-    const topClientes = await sequelize.query(topClientesQuery, { type: QueryTypes.SELECT });
+    const resumen = await consulta(resumenQuery, { replacements, type: QueryTypes.SELECT });
+    const facturacionDiaria = await consulta(facturacionDiariaQuery, { replacements, type: QueryTypes.SELECT });
+    const topClientes = await consulta(topClientesQuery, { replacements, type: QueryTypes.SELECT });
 
     // Calcular totales generales
     const totales = {
@@ -586,13 +608,16 @@ const getTopProductos = async (req, res) => {
     }
 
     let whereClause = `
-      WHERE ped.fecha_pedido BETWEEN '${fecha_desde}' AND '${fecha_hasta}'
+      WHERE ped.negocio_id = :negocioId
+        AND ped.fecha_pedido BETWEEN :fecha_desde AND :fecha_hasta
         AND ped.estado != 'CANCELADO'
     `;
-    
+    const replacements = { fecha_desde, fecha_hasta, limit: limiteSeguro(limit) };
+
     // Filtro por categoría
     if (categoria_id) {
-      whereClause += ` AND p.categoria_id = ${categoria_id}`;
+      whereClause += ' AND p.categoria_id = :categoria_id';
+      replacements.categoria_id = categoria_id;
     }
 
     const topProductosQuery = `
@@ -616,10 +641,10 @@ const getTopProductos = async (req, res) => {
       ${whereClause}
       GROUP BY p.id, p.codigo, p.descripcion, c.nombre, c.id, p.stock, p.margen_ganancia
       ORDER BY cantidad_vendida DESC
-      LIMIT ${limit}
+      LIMIT :limit
     `;
 
-    const topProductos = await sequelize.query(topProductosQuery, { type: QueryTypes.SELECT });
+    const topProductos = await consulta(topProductosQuery, { replacements, type: QueryTypes.SELECT });
 
     // Calcular totales
     const totales = {
@@ -660,6 +685,8 @@ const getTopClientes = async (req, res) => {
       });
     }
 
+    const replacements = { fecha_desde, fecha_hasta, limit: limiteSeguro(limit) };
+
     const topClientesQuery = `
       SELECT 
         c.id,
@@ -677,14 +704,15 @@ const getTopClientes = async (req, res) => {
         SUM(CASE WHEN p.tipo_operacion = 'NEGRO' THEN p.total ELSE 0 END) as total_negro
       FROM pedidos p
       INNER JOIN clientes c ON p.cliente_id = c.id
-      WHERE p.fecha_pedido BETWEEN '${fecha_desde}' AND '${fecha_hasta}'
+      WHERE p.negocio_id = :negocioId
+        AND p.fecha_pedido BETWEEN :fecha_desde AND :fecha_hasta
         AND p.estado != 'CANCELADO'
       GROUP BY c.id, c.nombre, c.razon_social, c.tipo_cliente, c.condicion_iva, c.localidad, c.provincia
       ORDER BY total_comprado DESC
-      LIMIT ${limit}
+      LIMIT :limit
     `;
 
-    const topClientes = await sequelize.query(topClientesQuery, { type: QueryTypes.SELECT });
+    const topClientes = await consulta(topClientesQuery, { replacements, type: QueryTypes.SELECT });
 
     // Calcular totales
     const totales = {
@@ -718,18 +746,23 @@ const getMovimientosStock = async (req, res) => {
   try {
     const { producto_id, fecha_desde, fecha_hasta, tipo_movimiento } = req.query;
 
-    let whereClause = 'WHERE 1=1';
+    let whereClause = 'WHERE ms.negocio_id = :negocioId';
+    const replacements = {};
 
     if (producto_id) {
-      whereClause += ` AND ms.producto_id = ${producto_id}`;
+      whereClause += ' AND ms.producto_id = :producto_id';
+      replacements.producto_id = producto_id;
     }
 
     if (fecha_desde && fecha_hasta) {
-      whereClause += ` AND ms.fecha BETWEEN '${fecha_desde}' AND '${fecha_hasta}'`;
+      whereClause += ' AND ms.fecha BETWEEN :fecha_desde AND :fecha_hasta';
+      replacements.fecha_desde = fecha_desde;
+      replacements.fecha_hasta = fecha_hasta;
     }
 
     if (tipo_movimiento) {
-      whereClause += ` AND ms.tipo_movimiento = '${tipo_movimiento}'`;
+      whereClause += ' AND ms.tipo_movimiento = :tipo_movimiento';
+      replacements.tipo_movimiento = tipo_movimiento;
     }
 
     const movimientosQuery = `
@@ -752,7 +785,7 @@ const getMovimientosStock = async (req, res) => {
       LIMIT 100
     `;
 
-    const movimientos = await sequelize.query(movimientosQuery, { type: QueryTypes.SELECT });
+    const movimientos = await consulta(movimientosQuery, { replacements, type: QueryTypes.SELECT });
 
     // Formatear respuesta para el frontend
     res.json({
@@ -794,13 +827,16 @@ const getRentabilidadCategorias = async (req, res) => {
     }
 
     let whereClause = `
-      WHERE ped.fecha_pedido BETWEEN '${fecha_desde}' AND '${fecha_hasta}'
+      WHERE ped.negocio_id = :negocioId
+        AND ped.fecha_pedido BETWEEN :fecha_desde AND :fecha_hasta
         AND ped.estado != 'CANCELADO'
     `;
-    
+    const replacements = { fecha_desde, fecha_hasta };
+
     // Filtro por categoría específica
     if (categoria_id) {
-      whereClause += ` AND c.id = ${categoria_id}`;
+      whereClause += ' AND c.id = :categoria_id';
+      replacements.categoria_id = categoria_id;
     }
 
     const rentabilidadQuery = `
@@ -821,7 +857,7 @@ const getRentabilidadCategorias = async (req, res) => {
       ORDER BY ganancia_estimada DESC
     `;
 
-    const rentabilidad = await sequelize.query(rentabilidadQuery, { type: QueryTypes.SELECT });
+    const rentabilidad = await consulta(rentabilidadQuery, { replacements, type: QueryTypes.SELECT });
 
     const totales = {
       total_vendido: rentabilidad.reduce((sum, r) => sum + parseFloat(r.total_vendido), 0),

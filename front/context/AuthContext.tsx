@@ -11,6 +11,8 @@ interface AuthContextType {
   login: (credentials: LoginRequest) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
+  /** Deja iniciada la sesión con la respuesta de registro / ingreso con Google */
+  establecerSesion: (usuario: Usuario, token?: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -106,6 +108,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   /**
+   * Deja iniciada la sesión con una respuesta que ya trae usuario y token
+   * (registro y login con Google). El token se guarda ANTES de marcar al usuario
+   * como autenticado, para que la primera pantalla ya lo tenga disponible.
+   */
+  const establecerSesion = async (usuario: Usuario, token?: string) => {
+    if (token) {
+      await storageService.saveToken(token);
+    }
+    await storageService.saveUser(usuario);
+    setUser(usuario);
+  };
+
+  /**
    * Cierra sesión y limpia todos los datos
    */
   const logout = async () => {
@@ -131,6 +146,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     login,
     logout,
     restoreSession,
+    establecerSesion,
   };
 
   return (

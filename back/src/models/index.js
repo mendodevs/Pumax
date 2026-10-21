@@ -13,6 +13,13 @@ const Configuracion = require('./Configuracion');
 const IngresoMercaderia = require('./IngresoMercaderia');
 const DetalleIngreso = require('./DetalleIngreso');
 const MovimientoStock = require('./MovimientoStock');
+const Negocio = require('./Negocio');
+const { aplicarTenant } = require('../utils/tenant');
+
+// Multi-negocio: agrega negocio_id y el filtro automático por negocio a estos modelos.
+// Tiene que ir antes de definir las relaciones.
+[Categoria, Producto, Cliente, Proveedor, Empleado, Usuario, Pedido, Factura,
+  IngresoMercaderia, Configuracion, MovimientoStock].forEach(aplicarTenant);
 
 
 // Producto - Categoria
@@ -188,5 +195,6 @@ module.exports = {
   Configuracion,
   IngresoMercaderia,
   DetalleIngreso,
-  MovimientoStock
+  MovimientoStock,
+  Negocio
 };

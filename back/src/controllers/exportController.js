@@ -1,6 +1,10 @@
 const sequelize = require('../config/database');
 const { QueryTypes } = require('sequelize');
 const ExcelJS = require('exceljs');
+const { consultaNegocio } = require('../utils/tenant');
+
+// SQL escrito a mano: siempre con :negocioId (el filtro automático por negocio no lo cubre).
+const consulta = (sql, opciones) => consultaNegocio(sequelize, sql, opciones);
 
 /**
  * MÓDULO DE EXPORTACIÓN - PUMAX
@@ -21,12 +25,15 @@ const exportarVentasExcel = async (req, res) => {
     }
 
     let whereClause = `
-      WHERE fecha_pedido BETWEEN '${fecha_desde}' AND '${fecha_hasta}'
-        AND estado != 'CANCELADO'
+      WHERE p.negocio_id = :negocioId
+        AND p.fecha_pedido BETWEEN :fecha_desde AND :fecha_hasta
+        AND p.estado != 'CANCELADO'
     `;
+    const replacements = { fecha_desde, fecha_hasta };
 
     if (tipo_operacion) {
-      whereClause += ` AND tipo_operacion = '${tipo_operacion}'`;
+      whereClause += ' AND p.tipo_operacion = :tipo_operacion';
+      replacements.tipo_operacion = tipo_operacion;
     }
 
     // Obtener datos
@@ -51,7 +58,7 @@ const exportarVentasExcel = async (req, res) => {
       ORDER BY p.fecha_pedido DESC
     `;
 
-    const ventas = await sequelize.query(ventasQuery, { type: QueryTypes.SELECT });
+    const ventas = await consulta(ventasQuery, { replacements, type: QueryTypes.SELECT });
 
     // Crear workbook
     const workbook = new ExcelJS.Workbook();
@@ -135,10 +142,12 @@ const exportarProductosExcel = async (req, res) => {
   try {
     const { categoria_id, stock_bajo } = req.query;
 
-    let whereClause = 'WHERE p.activo = 1';
+    let whereClause = 'WHERE p.negocio_id = :negocioId AND p.activo = 1';
+    const replacements = {};
 
     if (categoria_id) {
-      whereClause += ` AND p.categoria_id = ${categoria_id}`;
+      whereClause += ' AND p.categoria_id = :categoria_id';
+      replacements.categoria_id = categoria_id;
     }
 
     if (stock_bajo === 'true') {
@@ -167,7 +176,7 @@ const exportarProductosExcel = async (req, res) => {
       ORDER BY c.nombre, p.codigo
     `;
 
-    const productos = await sequelize.query(productosQuery, { type: QueryTypes.SELECT });
+    const productos = await consulta(productosQuery, { replacements, type: QueryTypes.SELECT });
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Productos');
@@ -255,12 +264,15 @@ const exportarFacturacionExcel = async (req, res) => {
     }
 
     let whereClause = `
-      WHERE fecha_emision BETWEEN '${fecha_desde}' AND '${fecha_hasta}'
-        AND estado = 'VIGENTE'
+      WHERE f.negocio_id = :negocioId
+        AND f.fecha_emision BETWEEN :fecha_desde AND :fecha_hasta
+        AND f.estado = 'EMITIDA'
     `;
+    const replacements = { fecha_desde, fecha_hasta };
 
     if (tipo_factura) {
-      whereClause += ` AND tipo_factura = '${tipo_factura}'`;
+      whereClause += ' AND f.tipo_factura = :tipo_factura';
+      replacements.tipo_factura = tipo_factura;
     }
 
     const facturasQuery = `
@@ -285,7 +297,7 @@ const exportarFacturacionExcel = async (req, res) => {
       ORDER BY f.fecha_emision DESC, f.numero_factura DESC
     `;
 
-    const facturas = await sequelize.query(facturasQuery, { type: QueryTypes.SELECT });
+    const facturas = await consulta(facturasQuery, { replacements, type: QueryTypes.SELECT });
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Facturación');
@@ -406,11 +418,12 @@ const exportarCSV = async (req, res) => {
             p.total
           FROM pedidos p
           INNER JOIN clientes c ON p.cliente_id = c.id
-          WHERE fecha_pedido BETWEEN '${fecha_desde}' AND '${fecha_hasta}'
-            AND estado != 'CANCELADO'
+          WHERE p.negocio_id = :negocioId
+            AND p.fecha_pedido BETWEEN :fecha_desde AND :fecha_hasta
+            AND p.estado != 'CANCELADO'
           ORDER BY p.fecha_pedido DESC
         `;
-        data = await sequelize.query(ventasQuery, { type: QueryTypes.SELECT });
+        data = await consulta(ventasQuery, { replacements: { fecha_desde, fecha_hasta }, type: QueryTypes.SELECT });
         headers = ['Número Pedido', 'Fecha', 'Cliente', 'Operación', 'Total'];
         filename = `ventas_${fecha_desde}_${fecha_hasta}.csv`;
         break;
@@ -426,10 +439,10 @@ const exportarCSV = async (req, res) => {
             p.stock_minimo
           FROM productos p
           INNER JOIN categorias c ON p.categoria_id = c.id
-          WHERE p.activo = 1
+          WHERE p.negocio_id = :negocioId AND p.activo = 1
           ORDER BY c.nombre, p.codigo
         `;
-        data = await sequelize.query(productosQuery, { type: QueryTypes.SELECT });
+        data = await consulta(productosQuery, { type: QueryTypes.SELECT });
         headers = ['Código', 'Descripción', 'Categoría', 'Precio', 'Stock', 'Stock Mín'];
         filename = `productos_${Date.now()}.csv`;
         break;
@@ -448,11 +461,12 @@ const exportarCSV = async (req, res) => {
             f.total
           FROM facturas f
           INNER JOIN clientes c ON f.cliente_id = c.id
-          WHERE fecha_emision BETWEEN '${fecha_desde}' AND '${fecha_hasta}'
-            AND estado = 'VIGENTE'
+          WHERE f.negocio_id = :negocioId
+            AND f.fecha_emision BETWEEN :fecha_desde AND :fecha_hasta
+            AND f.estado = 'EMITIDA'
           ORDER BY f.fecha_emision DESC
         `;
-        data = await sequelize.query(facturasQuery, { type: QueryTypes.SELECT });
+        data = await consulta(facturasQuery, { replacements: { fecha_desde, fecha_hasta }, type: QueryTypes.SELECT });
         headers = ['Número', 'Tipo', 'Fecha', 'Cliente', 'Total'];
         filename = `facturacion_${fecha_desde}_${fecha_hasta}.csv`;
         break;

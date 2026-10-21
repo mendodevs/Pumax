@@ -1,4 +1,4 @@
-export type Rol = "ADMIN" | "VENDEDOR" | "DEPOSITO" | "FACTURACION" | "VIAJANTE";
+export type Rol = "SUPERADMIN" | "ADMIN" | "VENDEDOR" | "DEPOSITO" | "FACTURACION" | "VIAJANTE";
 
 /** Ficha de empleado asociada a la cuenta (puede no existir) */
 export interface AccountEmployee {
@@ -33,6 +33,7 @@ export interface UpdateAccountData {
 }
 
 export const ROLE_LABELS: Record<Rol, string> = {
+  SUPERADMIN: "Super Administrador",
   ADMIN: "Administrador",
   VENDEDOR: "Vendedor",
   DEPOSITO: "Depósito",

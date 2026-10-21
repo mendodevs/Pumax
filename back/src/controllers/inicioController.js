@@ -1,5 +1,9 @@
 const sequelize = require('../config/database');
 const { QueryTypes } = require('sequelize');
+const { consultaNegocio } = require('../utils/tenant');
+
+// SQL escrito a mano: siempre con :negocioId (el filtro automático por negocio no lo cubre).
+const consulta = (sql, opciones) => consultaNegocio(sequelize, sql, opciones);
 
 /**
  * DATOS PARA LA PANTALLA DE INICIO
@@ -17,10 +21,10 @@ const num = (v) => Number(v) || 0;
 
 /** Ventas y pedidos entre [desde, hasta) */
 async function ventas(desde, hasta) {
-  const [r] = await sequelize.query(
+  const [r] = await consulta(
     `SELECT COUNT(*) AS pedidos, COALESCE(SUM(total), 0) AS ventas
        FROM pedidos
-      WHERE fecha_pedido >= :desde AND fecha_pedido < :hasta AND estado <> 'CANCELADO'`,
+      WHERE negocio_id = :negocioId AND fecha_pedido >= :desde AND fecha_pedido < :hasta AND estado <> 'CANCELADO'`,
     { replacements: { desde: ymd(desde), hasta: ymd(hasta) }, type: QueryTypes.SELECT }
   );
   return { pedidos: num(r.pedidos), ventas: num(r.ventas) };
@@ -50,55 +54,56 @@ const getInicio = async (req, res) => {
       ventas(lunesAnt, addDays(lunesAnt, (hoy.getDay() + 6) % 7 + 1)),
       ventas(mes, manana),
       ventas(mesAnt, mesAntHasta),
-      sequelize.query(
+      consulta(
         `SELECT DATE_FORMAT(fecha_pedido, '%Y-%m-%d') AS dia, COALESCE(SUM(total), 0) AS ventas
            FROM pedidos
-          WHERE fecha_pedido >= :desde AND fecha_pedido < :hasta AND estado <> 'CANCELADO'
+          WHERE negocio_id = :negocioId AND fecha_pedido >= :desde AND fecha_pedido < :hasta AND estado <> 'CANCELADO'
           GROUP BY dia`,
         { replacements: { desde: ymd(addDays(hoy, -6)), hasta: ymd(manana) }, type: QueryTypes.SELECT }
       ),
-      sequelize.query(
+      consulta(
         `SELECT estado, COUNT(*) AS cantidad
            FROM pedidos
-          WHERE estado IN ('PENDIENTE', 'PREPARANDO', 'LISTO')
+          WHERE negocio_id = :negocioId AND estado IN ('PENDIENTE', 'PREPARANDO', 'LISTO')
           GROUP BY estado`,
         { type: QueryTypes.SELECT }
       ),
-      sequelize.query(
+      consulta(
         `SELECT ped.id, ped.numero_pedido, ped.estado, ped.total, ped.tipo_operacion,
                 DATE_FORMAT(ped.fecha_pedido, '%Y-%m-%d') AS fecha, c.nombre AS cliente
            FROM pedidos ped
            LEFT JOIN clientes c ON ped.cliente_id = c.id
-          WHERE ped.estado IN ('PENDIENTE', 'PREPARANDO', 'LISTO')
+          WHERE ped.negocio_id = :negocioId AND ped.estado IN ('PENDIENTE', 'PREPARANDO', 'LISTO')
           ORDER BY ped.fecha_pedido ASC, ped.id ASC
           LIMIT 6`,
         { type: QueryTypes.SELECT }
       ),
-      sequelize.query(
+      consulta(
         `SELECT id, codigo, descripcion, stock, stock_minimo
            FROM productos
-          WHERE activo = 1 AND stock <= stock_minimo
+          WHERE negocio_id = :negocioId AND activo = 1 AND stock <= stock_minimo
           ORDER BY (stock - stock_minimo) ASC, id ASC
           LIMIT 6`,
         { type: QueryTypes.SELECT }
       ),
-      sequelize.query(
+      consulta(
         `SELECT COUNT(*) AS total, COALESCE(SUM(stock <= 0), 0) AS agotados
-           FROM productos WHERE activo = 1 AND stock <= stock_minimo`,
+           FROM productos WHERE negocio_id = :negocioId AND activo = 1 AND stock <= stock_minimo`,
         { type: QueryTypes.SELECT }
       ),
-      sequelize.query(
+      consulta(
         `SELECT f.id, f.numero_factura, f.tipo_factura, f.total, f.estado,
                 DATE_FORMAT(f.fecha_emision, '%Y-%m-%d') AS fecha, c.nombre AS cliente
            FROM facturas f
            LEFT JOIN clientes c ON f.cliente_id = c.id
+          WHERE f.negocio_id = :negocioId
           ORDER BY f.fecha_emision DESC, f.id DESC
           LIMIT 5`,
         { type: QueryTypes.SELECT }
       ),
-      sequelize.query(
+      consulta(
         `SELECT COUNT(*) AS clientes, COALESCE(SUM(saldo_actual), 0) AS monto
-           FROM clientes WHERE activo = 1 AND saldo_actual > 0`,
+           FROM clientes WHERE negocio_id = :negocioId AND activo = 1 AND saldo_actual > 0`,
         { type: QueryTypes.SELECT }
       ),
     ]);
@@ -156,10 +161,10 @@ const getInicio = async (req, res) => {
 const getAlertas = async (req, res) => {
   try {
     const [[ped], [stock]] = await Promise.all([
-      sequelize.query(`SELECT COUNT(*) AS n FROM pedidos WHERE estado = 'PENDIENTE'`, { type: QueryTypes.SELECT }),
-      sequelize.query(
+      consulta(`SELECT COUNT(*) AS n FROM pedidos WHERE negocio_id = :negocioId AND estado = 'PENDIENTE'`, { type: QueryTypes.SELECT }),
+      consulta(
         `SELECT COUNT(*) AS total, COALESCE(SUM(stock <= 0), 0) AS agotados
-           FROM productos WHERE activo = 1 AND stock <= stock_minimo`,
+           FROM productos WHERE negocio_id = :negocioId AND activo = 1 AND stock <= stock_minimo`,
         { type: QueryTypes.SELECT }
       ),
     ]);

@@ -1,5 +1,9 @@
 const sequelize = require('../config/database');
 const { QueryTypes } = require('sequelize');
+const { consultaNegocio } = require('../utils/tenant');
+
+// SQL escrito a mano: siempre con :negocioId (el filtro automático por negocio no lo cubre).
+const consulta = (sql, opciones) => consultaNegocio(sequelize, sql, opciones);
 
 /**
  * RESUMEN POR PERÍODO (semanal / mensual)
@@ -40,29 +44,29 @@ const num = (v) => Number(v) || 0;
 
 /** Totales de un rango */
 async function totales(desde, hasta) {
-  const [v] = await sequelize.query(
+  const [v] = await consulta(
     `SELECT COUNT(*) AS pedidos,
             COALESCE(SUM(total), 0) AS ventas,
             COUNT(DISTINCT cliente_id) AS clientes
        FROM pedidos
-      WHERE fecha_pedido >= :desde AND fecha_pedido < :hasta AND estado <> 'CANCELADO'`,
+      WHERE negocio_id = :negocioId AND fecha_pedido >= :desde AND fecha_pedido < :hasta AND estado <> 'CANCELADO'`,
     { replacements: { desde, hasta }, type: QueryTypes.SELECT }
   );
 
-  const [u] = await sequelize.query(
+  const [u] = await consulta(
     `SELECT COALESCE(SUM(dp.cantidad), 0) AS unidades,
             COALESCE(SUM(dp.subtotal - dp.cantidad * p.precio_base), 0) AS ganancia
        FROM detalle_pedidos dp
        JOIN pedidos ped ON dp.pedido_id = ped.id
        JOIN productos p ON dp.producto_id = p.id
-      WHERE ped.fecha_pedido >= :desde AND ped.fecha_pedido < :hasta AND ped.estado <> 'CANCELADO'`,
+      WHERE ped.negocio_id = :negocioId AND ped.fecha_pedido >= :desde AND ped.fecha_pedido < :hasta AND ped.estado <> 'CANCELADO'`,
     { replacements: { desde, hasta }, type: QueryTypes.SELECT }
   );
 
-  const [f] = await sequelize.query(
+  const [f] = await consulta(
     `SELECT COUNT(*) AS cantidad, COALESCE(SUM(total), 0) AS monto
        FROM facturas
-      WHERE fecha_emision >= :desde AND fecha_emision < :hasta AND estado = 'EMITIDA'`,
+      WHERE negocio_id = :negocioId AND fecha_emision >= :desde AND fecha_emision < :hasta AND estado = 'EMITIDA'`,
     { replacements: { desde, hasta }, type: QueryTypes.SELECT }
   );
 
@@ -99,71 +103,71 @@ const getResumen = async (req, res) => {
     const [actual, anterior] = await Promise.all([totales(desde, hasta), totales(antDesde, antHasta)]);
 
     const [porDia, porEstado, porTipo, topProductos, topClientes, porCategoria, movimientos, stock] = await Promise.all([
-      sequelize.query(
+      consulta(
         `SELECT DATE_FORMAT(fecha_pedido, '%Y-%m-%d') AS dia, COUNT(*) AS pedidos, COALESCE(SUM(total), 0) AS ventas
            FROM pedidos
-          WHERE fecha_pedido >= :desde AND fecha_pedido < :hasta AND estado <> 'CANCELADO'
+          WHERE negocio_id = :negocioId AND fecha_pedido >= :desde AND fecha_pedido < :hasta AND estado <> 'CANCELADO'
           GROUP BY dia`,
         { replacements: rep, type: QueryTypes.SELECT }
       ),
-      sequelize.query(
+      consulta(
         `SELECT estado, COUNT(*) AS cantidad
            FROM pedidos
-          WHERE fecha_pedido >= :desde AND fecha_pedido < :hasta
+          WHERE negocio_id = :negocioId AND fecha_pedido >= :desde AND fecha_pedido < :hasta
           GROUP BY estado`,
         { replacements: rep, type: QueryTypes.SELECT }
       ),
-      sequelize.query(
+      consulta(
         `SELECT tipo_operacion AS tipo, COUNT(*) AS pedidos, COALESCE(SUM(total), 0) AS ventas
            FROM pedidos
-          WHERE fecha_pedido >= :desde AND fecha_pedido < :hasta AND estado <> 'CANCELADO'
+          WHERE negocio_id = :negocioId AND fecha_pedido >= :desde AND fecha_pedido < :hasta AND estado <> 'CANCELADO'
           GROUP BY tipo_operacion`,
         { replacements: rep, type: QueryTypes.SELECT }
       ),
-      sequelize.query(
+      consulta(
         `SELECT p.id, p.codigo, p.descripcion,
                 SUM(dp.cantidad) AS unidades, SUM(dp.subtotal) AS monto
            FROM detalle_pedidos dp
            JOIN pedidos ped ON dp.pedido_id = ped.id
            JOIN productos p ON dp.producto_id = p.id
-          WHERE ped.fecha_pedido >= :desde AND ped.fecha_pedido < :hasta AND ped.estado <> 'CANCELADO'
+          WHERE ped.negocio_id = :negocioId AND ped.fecha_pedido >= :desde AND ped.fecha_pedido < :hasta AND ped.estado <> 'CANCELADO'
           GROUP BY p.id, p.codigo, p.descripcion
           ORDER BY unidades DESC
           LIMIT 5`,
         { replacements: rep, type: QueryTypes.SELECT }
       ),
-      sequelize.query(
+      consulta(
         `SELECT c.id, c.nombre, COUNT(*) AS pedidos, SUM(ped.total) AS monto
            FROM pedidos ped
            JOIN clientes c ON ped.cliente_id = c.id
-          WHERE ped.fecha_pedido >= :desde AND ped.fecha_pedido < :hasta AND ped.estado <> 'CANCELADO'
+          WHERE ped.negocio_id = :negocioId AND ped.fecha_pedido >= :desde AND ped.fecha_pedido < :hasta AND ped.estado <> 'CANCELADO'
           GROUP BY c.id, c.nombre
           ORDER BY monto DESC
           LIMIT 5`,
         { replacements: rep, type: QueryTypes.SELECT }
       ),
-      sequelize.query(
+      consulta(
         `SELECT COALESCE(cat.nombre, 'Sin categoría') AS categoria, SUM(dp.subtotal) AS monto
            FROM detalle_pedidos dp
            JOIN pedidos ped ON dp.pedido_id = ped.id
            JOIN productos p ON dp.producto_id = p.id
            LEFT JOIN categorias cat ON p.categoria_id = cat.id
-          WHERE ped.fecha_pedido >= :desde AND ped.fecha_pedido < :hasta AND ped.estado <> 'CANCELADO'
+          WHERE ped.negocio_id = :negocioId AND ped.fecha_pedido >= :desde AND ped.fecha_pedido < :hasta AND ped.estado <> 'CANCELADO'
           GROUP BY categoria
           ORDER BY monto DESC
           LIMIT 6`,
         { replacements: rep, type: QueryTypes.SELECT }
       ),
-      sequelize.query(
+      consulta(
         `SELECT tipo_movimiento AS tipo, COUNT(*) AS movimientos, COALESCE(SUM(cantidad), 0) AS unidades
            FROM movimientos_stock
-          WHERE fecha >= :desde AND fecha < :hasta
+          WHERE negocio_id = :negocioId AND fecha >= :desde AND fecha < :hasta
           GROUP BY tipo_movimiento`,
         { replacements: rep, type: QueryTypes.SELECT }
       ),
-      sequelize.query(
+      consulta(
         `SELECT SUM(stock <= stock_minimo AND stock > 0) AS bajo, SUM(stock <= 0) AS agotado
-           FROM productos WHERE activo = 1`,
+           FROM productos WHERE negocio_id = :negocioId AND activo = 1`,
         { type: QueryTypes.SELECT }
       ),
     ]);

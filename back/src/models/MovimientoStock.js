@@ -28,7 +28,7 @@ const MovimientoStock = sequelize.define('MovimientoStock', {
     allowNull: true
   },
   referencia_tipo: {
-    type: DataTypes.ENUM('PEDIDO', 'INGRESO', 'AJUSTE_MANUAL'),
+    type: DataTypes.ENUM('PEDIDO', 'INGRESO', 'AJUSTE_MANUAL', 'FACTURA'),
     allowNull: true,
     comment: 'Tipo de documento que origina el movimiento'
   },

@@ -6,6 +6,8 @@ import "./../global.css";
 import { useI18n } from "../i18n";
 import { useTheme } from "../context/SettingsContext";
 import Logo from "../components/Logo";
+import GoogleButton, { googleDisponible } from "../components/GoogleButton";
+import { ingresarConGoogle } from "../services/account.service";
 
 export default function LoginScreen() {
   const { t } = useI18n();
@@ -13,10 +15,11 @@ export default function LoginScreen() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
   const passwordInputRef = useRef<TextInput>(null);
   const router = useRouter();
-  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { login, establecerSesion, isAuthenticated, isLoading: authLoading } = useAuth();
 
   // Si ya está autenticado, redirigir al dashboard
   useEffect(() => {
@@ -51,6 +54,27 @@ export default function LoginScreen() {
       setError(t("login.connection"));
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Ingreso con Google: el token se verifica en el servidor; acá solo se usa la respuesta
+  const handleGoogle = async (idToken: string) => {
+    setError("");
+    setGoogleLoading(true);
+
+    try {
+      const res = await ingresarConGoogle({ idToken, modo: "login" });
+
+      if (res.success && res.data && res.token) {
+        await establecerSesion(res.data, res.token);
+        router.replace("/dashboard/Home");
+      } else {
+        setError(res.message || t("login.failed"));
+      }
+    } catch (err) {
+      setError(t("login.connection"));
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -106,9 +130,41 @@ export default function LoginScreen() {
           )}
         </TouchableOpacity>
 
-        <Text className="text-center text-gray-500 text-sm mt-4">
-          {t("login.forgot")}
-        </Text>
+        <TouchableOpacity
+          onPress={() => router.push("/olvide-password")}
+          disabled={loading || googleLoading}
+        >
+          <Text className="text-center text-gray-400 text-sm mt-4 underline">
+            {t("login.forgot")}
+          </Text>
+        </TouchableOpacity>
+
+        {googleDisponible ? (
+          <>
+            <View className="flex-row items-center my-5">
+              <View className="flex-1 h-px bg-slate-700" />
+              <Text className="text-gray-500 text-xs mx-3">o</Text>
+              <View className="flex-1 h-px bg-slate-700" />
+            </View>
+
+            <GoogleButton
+              texto="Ingresar con Google"
+              disabled={loading}
+              cargando={googleLoading}
+              onIdToken={handleGoogle}
+              onError={setError}
+            />
+          </>
+        ) : null}
+
+        <TouchableOpacity
+          onPress={() => router.push("/registro")}
+          disabled={loading || googleLoading}
+        >
+          <Text className="text-center text-gray-400 text-sm mt-5">
+            ¿No tenés cuenta? <Text className="text-brand-400 font-semibold">Creá una</Text>
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );

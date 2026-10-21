@@ -8,7 +8,8 @@ const bcrypt = require('bcryptjs');
 // ADMINISTRACIÓN DE USUARIOS (solo ADMIN, ver usuarioRoutes)
 // ============================================
 
-const ROLES_VALIDOS = ['ADMIN', 'VENDEDOR', 'DEPOSITO', 'FACTURACION', 'VIAJANTE'];
+const ROLES_VALIDOS = ['ADMIN', 'VENDEDOR', 'DEPOSITO', 'FACTURACION', 'VIAJANTE']; // SUPERADMIN no se asigna desde acá: se crea al registrarse
+const ROLES_ADMIN = ['SUPERADMIN', 'ADMIN'];
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,50}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN = 8;
@@ -34,7 +35,7 @@ const buscarUsuario = (id) =>
 
 /** Admins activos, sin contar a `exceptoId` (para no dejar el sistema sin administrador) */
 const otrosAdminsActivos = (exceptoId) =>
-  Usuario.count({ where: { rol: 'ADMIN', activo: true, id: { [Op.ne]: exceptoId } } });
+  Usuario.count({ where: { rol: { [Op.in]: ROLES_ADMIN }, activo: true, id: { [Op.ne]: exceptoId } } });
 
 /** Cierra todas las sesiones abiertas de una persona */
 const cerrarSesiones = (usuarioId, transaction) =>
@@ -142,7 +143,7 @@ exports.create = async (req, res) => {
       return fail(res, 400, `La contraseña debe tener al menos ${PASSWORD_MIN} caracteres`);
     }
 
-    if (await Usuario.findOne({ where: { username: user }, transaction: t })) {
+    if (await Usuario.findOne({ where: { username: user }, transaction: t, sinTenant: true })) { // único global, no solo en este negocio
       await t.rollback();
       return fail(res, 400, 'Ese nombre de usuario ya está en uso');
     }
@@ -215,6 +216,11 @@ exports.update = async (req, res) => {
       return fail(res, 404, 'Usuario no encontrado');
     }
 
+    if (usuario.rol === 'SUPERADMIN' && req.user.rol !== 'SUPERADMIN') {
+      await t.rollback();
+      return fail(res, 403, 'Solo un superadministrador puede modificar esa cuenta');
+    }
+
     const esMismo = id === Number(req.user.id);
     const cambios = {};
 
@@ -235,7 +241,7 @@ exports.update = async (req, res) => {
       await t.rollback();
       return fail(res, 400, 'No podés cambiar tu propio rol ni desactivar tu propia cuenta');
     }
-    if (usuario.rol === 'ADMIN' && usuario.activo && (cambiaRol || desactiva)) {
+    if (ROLES_ADMIN.includes(usuario.rol) && usuario.activo && (cambiaRol || desactiva)) {
       if ((await otrosAdminsActivos(id)) === 0) {
         await t.rollback();
         return fail(res, 400, 'Tiene que quedar al menos un administrador activo');
@@ -310,7 +316,11 @@ exports.delete = async (req, res) => {
       await t.rollback();
       return fail(res, 400, 'No podés desactivar tu propia cuenta');
     }
-    if (usuario.rol === 'ADMIN' && usuario.activo && (await otrosAdminsActivos(id)) === 0) {
+    if (usuario.rol === 'SUPERADMIN' && req.user.rol !== 'SUPERADMIN') {
+      await t.rollback();
+      return fail(res, 403, 'Solo un superadministrador puede desactivar esa cuenta');
+    }
+    if (ROLES_ADMIN.includes(usuario.rol) && usuario.activo && (await otrosAdminsActivos(id)) === 0) {
       await t.rollback();
       return fail(res, 400, 'Tiene que quedar al menos un administrador activo');
     }
@@ -338,6 +348,9 @@ exports.resetPassword = async (req, res) => {
     }
     const usuario = await Usuario.findByPk(id);
     if (!usuario) return fail(res, 404, 'Usuario no encontrado');
+    if (usuario.rol === 'SUPERADMIN' && req.user.rol !== 'SUPERADMIN') {
+      return fail(res, 403, 'Solo un superadministrador puede reiniciar esa contraseña');
+    }
 
     let clave = req.body.password_nueva;
     let generada = false;
@@ -390,11 +403,47 @@ exports.getMe = async (req, res) => {
 exports.updateMe = async (req, res) => {
   try {
     const usuario = await Usuario.findByPk(req.user.id);
-    if (!usuario || !usuario.empleado_id) {
-      return res.status(400).json({
-        success: false,
-        message: 'Tu usuario no tiene una ficha de empleado asociada. Pedile a un administrador que la cargue.'
+    if (!usuario) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+
+    // Cuenta sin ficha (por ejemplo, creada antes de que el registro la generara): se crea
+    // acá con lo que carga la persona. Nombre y apellido son obligatorios.
+    if (!usuario.empleado_id) {
+      const nombre = String(req.body.nombre || '').trim();
+      const apellido = String(req.body.apellido || '').trim();
+      if (!nombre || !apellido) {
+        return res.status(400).json({
+          success: false,
+          message: 'Completá tu nombre y apellido para guardar tus datos'
+        });
+      }
+      const email = String(req.body.email || '').trim();
+      if (email && !EMAIL_REGEX.test(email)) {
+        return res.status(400).json({ success: false, message: 'El email no es válido' });
+      }
+      const telefono = String(req.body.telefono || '').trim();
+      const direccion = String(req.body.direccion || '').trim();
+
+      // DNI provisional y único en el negocio; un administrador puede cargar el real
+      let dni;
+      do {
+        dni = String(Math.floor(Math.random() * 1e8)).padStart(8, '0');
+      } while (await Empleado.findOne({ where: { dni } }));
+
+      const ficha = await Empleado.create({
+        nombre: nombre.slice(0, 100),
+        apellido: apellido.slice(0, 100),
+        dni,
+        email: email ? email.slice(0, 100) : null,
+        telefono: telefono ? telefono.slice(0, 20) : null,
+        direccion: direccion || null,
+        cargo: usuario.rol === 'SUPERADMIN' ? 'Propietario' : null,
+        fecha_ingreso: new Date()
       });
+      await usuario.update({ empleado_id: ficha.id });
+
+      return res.json({ success: true, message: 'Datos guardados', data: await buscarMiCuenta(req.user.id) });
     }
 
     const { nombre, apellido, email, telefono, direccion } = req.body;
@@ -462,6 +511,10 @@ exports.changeMyPassword = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
     }
 
+    if (!usuario.password_hash) {
+      return res.status(400).json({ success: false, message: 'Tu cuenta usa Google y no tiene contraseña para cambiar' });
+    }
+
     // Mismo criterio que el login (hash bcrypt o, en cuentas viejas, texto plano)
     const esHash = usuario.password_hash.startsWith('$2a$') || usuario.password_hash.startsWith('$2b$');
     const actualValida = esHash
@@ -494,11 +547,13 @@ exports.login = async (req, res) => {
     }
 
     // Buscar usuario activo por username
+    const ident = String(username).trim();
     const usuario = await Usuario.findOne({
       where: {
-        username: username,
+        [Op.or]: [{ username: ident }, { email: ident.toLowerCase() }],
         activo: true
       },
+      sinTenant: true, // el login busca en todos los negocios
       include: [{
         model: Empleado,
         as: 'empleado',
@@ -511,6 +566,13 @@ exports.login = async (req, res) => {
       return res.status(401).json({
         success: false,
         message: 'Credenciales inválidas'
+      });
+    }
+
+    if (!usuario.password_hash) {
+      return res.status(401).json({
+        success: false,
+        message: 'Esta cuenta ingresa con Google. Usá el botón de Google o recuperá tu contraseña.'
       });
     }
 
