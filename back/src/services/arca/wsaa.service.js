@@ -1,45 +1,74 @@
 const fs = require('fs');
+const path = require('path');
 const forge = require('node-forge');
 const { XMLParser } = require('fast-xml-parser');
 const config = require('./config');
 
-// Caché en memoria del Token de Acceso (válido 12hs)
+const cacheFilePath = path.resolve(path.dirname(config.certPath), '.ta-cache.json');
 let cachedTicket = null;
+
+function cargarTicketPersistido() {
+  try {
+    if (fs.existsSync(cacheFilePath)) {
+      const data = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8'));
+      if (data && data.expirationTime && new Date(data.expirationTime) > new Date(Date.now() + 10 * 60 * 1000)) {
+        return data;
+      }
+    }
+  } catch (e) {
+    // Ignorar si el archivo está corrupto o expirado
+  }
+  return null;
+}
+
+function persistirTicket(ticket) {
+  try {
+    fs.writeFileSync(cacheFilePath, JSON.stringify(ticket, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Error guardando caché de ticket en disco:', e.message);
+  }
+}
 
 /**
  * Genera el XML del Ticket de Requerimiento de Acceso (TRA)
  */
-function generarTRA() {
-  const ahora = Date.now();
-  // Fecha generación: 10 minutos atrás para tolerar desfase de reloj
-  const genTime = new Date(ahora - 10 * 60 * 1000).toISOString();
-  // Fecha expiración: 10 minutos en el futuro para la validez de la solicitud
-  const expTime = new Date(ahora + 10 * 60 * 1000).toISOString();
-  const uniqueId = Math.floor(ahora / 1000);
+function generarTRA(service = 'wsfe') {
+  const now = new Date();
+  // AFIP exige que generationTime sea un poco en el pasado para evitar desfases de reloj
+  const genTime = new Date(now.getTime() - 2 * 60 * 1000);
+  const expTime = new Date(now.getTime() + 12 * 60 * 60 * 1000);
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const formatIso = (d) => {
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  };
+
+  const uniqueId = Math.floor(Date.now() / 1000);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <loginTicketRequest version="1.0">
   <header>
     <uniqueId>${uniqueId}</uniqueId>
-    <generationTime>${genTime}</generationTime>
-    <expirationTime>${expTime}</expirationTime>
+    <generationTime>${formatIso(genTime)}</generationTime>
+    <expirationTime>${formatIso(expTime)}</expirationTime>
   </header>
-  <service>wsfe</service>
+  <service>${service}</service>
 </loginTicketRequest>`;
 }
 
 /**
- * Firma el XML en formato PKCS#7 / CMS codificado en Base64
+ * Firma el TRA con PKCS#7 / CMS usando node-forge
  */
 function firmarTRA(traXml, certPem, keyPem) {
-  const cert = forge.pki.certificateFromPem(certPem);
-  const privateKey = forge.pki.privateKeyFromPem(keyPem);
-
   const p7 = forge.pkcs7.createSignedData();
   p7.content = forge.util.createBuffer(traXml, 'utf8');
+
+  const cert = forge.pki.certificateFromPem(certPem);
+  const key = forge.pki.privateKeyFromPem(keyPem);
+
   p7.addCertificate(cert);
   p7.addSigner({
-    key: privateKey,
+    key: key,
     certificate: cert,
     digestAlgorithm: forge.pki.oids.sha256,
     authenticatedAttributes: [
@@ -63,10 +92,14 @@ function firmarTRA(traXml, certPem, keyPem) {
 }
 
 /**
- * Obtiene credenciales activas (Token + Sign) desde WSAA con caché de 12hs
+ * Obtiene credenciales activas (Token + Sign) desde WSAA con caché persistente de 12hs
  */
 async function obtenerCredenciales() {
-  // 1. Si hay ticket en caché vigente por al menos 10 minutos más, reutilizarlo
+  // 1. Si hay ticket en caché vigente (memoria o disco), reutilizarlo
+  if (!cachedTicket) {
+    cachedTicket = cargarTicketPersistido();
+  }
+
   if (cachedTicket && new Date(cachedTicket.expirationTime) > new Date(Date.now() + 10 * 60 * 1000)) {
     return {
       token: cachedTicket.token,
@@ -81,7 +114,6 @@ async function obtenerCredenciales() {
   const keyExiste = fs.existsSync(config.keyPath);
 
   if (!certExiste || !keyExiste || config.env === 'simulado') {
-    // Si no están los certificados, devolvemos credenciales simuladas para no bloquear el desarrollo
     return {
       token: 'TOKEN_SIMULADO_' + Date.now(),
       sign: 'SIGN_SIMULADO_' + Date.now(),
@@ -149,12 +181,13 @@ async function obtenerCredenciales() {
     const sign = loginTicket.credentials.sign;
     const expirationTime = loginTicket.header.expirationTime;
 
-    // Guardar en caché
+    // Guardar en caché de memoria y disco
     cachedTicket = {
       token,
       sign,
       expirationTime
     };
+    persistirTicket(cachedTicket);
 
     console.log(`✓ Credenciales ARCA obtenidas exitosamente (Vigentes hasta: ${expirationTime})`);
 
@@ -176,6 +209,13 @@ async function obtenerCredenciales() {
  */
 function limpiarCache() {
   cachedTicket = null;
+  try {
+    if (fs.existsSync(cacheFilePath)) {
+      fs.unlinkSync(cacheFilePath);
+    }
+  } catch (e) {
+    // Ignorar
+  }
 }
 
 module.exports = {

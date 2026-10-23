@@ -16,8 +16,15 @@ const URLS = {
   }
 };
 
-const CERT_PATH = process.env.ARCA_CERT_PATH || path.resolve(__dirname, '../../../certs/arca.crt');
-const KEY_PATH = process.env.ARCA_KEY_PATH || path.resolve(__dirname, '../../../certs/arca.key');
+const resolverRutaCert = (p, def) =>
+  !p
+    ? path.resolve(__dirname, '../../../certs', def)
+    : path.isAbsolute(p)
+      ? p
+      : path.resolve(__dirname, '../../..', p);
+
+const CERT_PATH = resolverRutaCert(process.env.ARCA_CERT_PATH, 'arca.crt');
+const KEY_PATH = resolverRutaCert(process.env.ARCA_KEY_PATH, 'arca.key');
 
 module.exports = {
   env: ARCA_ENV,

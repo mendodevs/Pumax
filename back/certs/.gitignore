@@ -5,6 +5,7 @@
 *.csr
 *.pfx
 *.p12
+*.json
 
 # No ignorar el .gitignore ni archivos de ejemplo
 !.gitignore
